@@ -24,7 +24,9 @@ export function LayoutPanel({ monitors, windows, onRefresh }: Props): React.Reac
   const [busy, setBusy] = React.useState(false);
 
   async function reload(): Promise<void> {
-    const list = await window.hub.listLayouts();
+    const hub = window.hub;
+    if (!hub) return;
+    const list = await hub.listLayouts();
     setProfiles(list);
   }
 

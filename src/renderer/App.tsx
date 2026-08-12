@@ -1,5 +1,6 @@
 import React from 'react';
 import type { MonitorInfo, WindowInfo, WindowMode, WindowProcessFilter } from '@shared/types';
+import type { HubApi } from '../preload/index';
 import { MonitorCard } from './components/MonitorCard';
 import { WindowPicker } from './components/WindowPicker';
 import { LayoutPanel } from './components/LayoutPanel';
@@ -15,15 +16,26 @@ export function App(): React.ReactElement {
   const [loading, setLoading] = React.useState(true);
 
   const refresh = React.useCallback(async () => {
-    if (typeof window === 'undefined' || !window.hub) {
-      setError('El preload del Hub no cargó. Reinstala la app o contacta soporte.');
+    const w = (typeof window !== 'undefined' ? (window as unknown as { hub?: unknown; __hubPreloadError?: string }).hub : undefined);
+    const preloadErr = (typeof window !== 'undefined' ? (window as unknown as { __hubPreloadError?: string }).__hubPreloadError : undefined);
+    if (!w) {
+      setError(
+        preloadErr
+          ? `Preload falló: ${preloadErr}`
+          : 'El preload del Hub no cargó (window.hub undefined). Reinstala la app o contacta soporte.'
+      );
+      setLoading(false);
+      return;
+    }
+    if (typeof w === 'object' && w !== null && '__error' in w) {
+      setError(`Preload error: ${(w as { __error: string }).__error}`);
       setLoading(false);
       return;
     }
     try {
       const [ms, ws] = await Promise.all([
-        window.hub.listMonitors(),
-        window.hub.listWindows(filter),
+        (w as HubApi).listMonitors(),
+        (w as HubApi).listWindows(filter),
       ]);
       setMonitors(ms);
       setWindows(ws);
@@ -46,9 +58,16 @@ export function App(): React.ReactElement {
     return () => clearInterval(id);
   }, [refresh]);
 
+  function getHub(): HubApi | null {
+    const w = window as unknown as { hub?: HubApi };
+    return w.hub ?? null;
+  }
+
   async function handleMove(hwnd: number, monitorIndex: number, mode: WindowMode): Promise<void> {
+    const hub = getHub();
+    if (!hub) return;
     try {
-      await window.hub.moveWindow(hwnd, monitorIndex, mode);
+      await hub.moveWindow(hwnd, monitorIndex, mode);
       await refresh();
     } catch (e) {
       setError('Mover: ' + (e as Error).message);
@@ -56,8 +75,10 @@ export function App(): React.ReactElement {
   }
 
   async function handleSetMode(hwnd: number, mode: WindowMode): Promise<void> {
+    const hub = getHub();
+    if (!hub) return;
     try {
-      await window.hub.setWindowMode(hwnd, mode);
+      await hub.setWindowMode(hwnd, mode);
       await refresh();
     } catch (e) {
       setError('Modo: ' + (e as Error).message);
@@ -65,8 +86,10 @@ export function App(): React.ReactElement {
   }
 
   async function handleIdentify(): Promise<void> {
+    const hub = getHub();
+    if (!hub) return;
     try {
-      await window.hub.identifyMonitors();
+      await hub.identifyMonitors();
     } catch (e) {
       setError('Identificar: ' + (e as Error).message);
     }
