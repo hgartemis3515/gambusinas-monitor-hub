@@ -23,6 +23,9 @@ export interface HubApi {
     id: string,
     opts?: { kiosk?: boolean },
   ) => Promise<{ applied: number; opened: number; errors: string[] }>;
+  applyCocina: (
+    opts?: { kiosk?: boolean },
+  ) => Promise<{ applied: number; opened: number; errors: string[] }>;
   deleteLayout: (id: string) => Promise<void>;
   importFromCocina: () => Promise<CocinaLayoutImport | null>;
   importCocinaFile: () => Promise<CocinaLayoutImport | null>;
@@ -30,6 +33,7 @@ export interface HubApi {
   setHubConfig: (cfg: { backendUrl: string }) => Promise<void>;
   getHubStatus: () => Promise<string>;
   onHubStatus: (cb: (s: string) => void) => void;
+  getVersion: () => Promise<string>;
 }
 
 try {
@@ -45,12 +49,14 @@ try {
     listLayouts: () => ipcRenderer.invoke(IpcChannel.LAYOUTS_LIST),
     saveLayout: (name, slots) => ipcRenderer.invoke(IpcChannel.LAYOUTS_SAVE, name, slots),
     applyLayout: (id, opts) => ipcRenderer.invoke(IpcChannel.LAYOUTS_APPLY, id, opts),
+    applyCocina: (opts) => ipcRenderer.invoke(IpcChannel.LAYOUTS_APPLY_COCINA, opts),
     deleteLayout: (id) => ipcRenderer.invoke(IpcChannel.LAYOUTS_DELETE, id),
     importFromCocina: () => ipcRenderer.invoke(IpcChannel.COCINA_IMPORT),
     importCocinaFile: () => ipcRenderer.invoke(IpcChannel.COCINA_IMPORT_FILE),
     getHubConfig: () => ipcRenderer.invoke(IpcChannel.HUB_CONFIG_GET),
     setHubConfig: (cfg) => ipcRenderer.invoke(IpcChannel.HUB_CONFIG_SET, cfg),
     getHubStatus: () => ipcRenderer.invoke(IpcChannel.HUB_STATUS),
+    getVersion: () => ipcRenderer.invoke(IpcChannel.HUB_VERSION),
     onHubStatus: (cb) => {
       const handler = (_e: unknown, s: string) => cb(s);
       ipcRenderer.on('hub:status-changed', handler);

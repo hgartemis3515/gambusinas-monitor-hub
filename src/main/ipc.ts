@@ -98,13 +98,25 @@ function buildSpawnArgs(
   bounds: { x: number; y: number; width: number; height: number },
   kiosk: boolean,
 ): string[] {
+  // Flags para silenciar popups que roban el foco e impiden el fullscreen:
+  //  - TranslateUI: deshabilita el "¿Quieres traducir esta página?"
+  //  - no-first-run / no-default-browser-check: evitan diálogos de primer uso
+  //  - lang/accept-lang: el navegador asume que la página ya está en el idioma del usuario
+  const quietFlags = [
+    '--disable-features=TranslateUI,Translate',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--lang=es',
+    '--accept-lang=es-419,es',
+  ];
   if (slot.mode === 'fullscreen') {
     // Kiosk: sin URL bar, sin tabs, bloqueado (ideal para cocina).
     // start-fullscreen: fullscreen del navegador (F11-like), se puede salir con F11.
     return kiosk
-      ? ['--kiosk', '--disable-pinch', '--no-default-browser-check', slot.url!]
+      ? [...quietFlags, '--kiosk', '--disable-pinch', slot.url!]
       : [
           '--new-window',
+          ...quietFlags,
           '--start-fullscreen',
           `--window-position=${bounds.x},${bounds.y}`,
           `--window-size=${bounds.width},${bounds.height}`,
@@ -182,6 +194,23 @@ export function registerIpc(): void {
     const profile = await getLayout(id);
     if (!profile) throw new Error('Perfil no encontrado: ' + id);
     return applyLayout(profile, opts);
+  });
+
+  // Boton unico: lee el inbox de App Cocina y aplica con kiosk (pantalla completa
+  // sin URL bar) en un solo paso. Abre las ventanas en cada monitor asignado.
+  ipcMain.handle(IpcChannel.LAYOUTS_APPLY_COCINA, async (_e, opts?: { kiosk?: boolean }) => {
+    const data = await readInbox();
+    if (!data || !data.slots?.length) {
+      throw new Error('No hay layout de Cocina en el inbox. Envía desde la App Cocina ("Enviar al Monitor Hub").');
+    }
+    const profile: LayoutProfile = {
+      id: `cocina-${Date.now()}`,
+      name: data.profileName || `Cocina ${new Date().toLocaleString()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      slots: validateSlots(data.slots) ?? [],
+    };
+    return applyLayout(profile, { kiosk: opts?.kiosk !== false });
   });
 
   ipcMain.handle(IpcChannel.COCINA_IMPORT, async () => {

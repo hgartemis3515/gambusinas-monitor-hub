@@ -19,6 +19,7 @@ const SW_RESTORE = 9;
 const SW_MAXIMIZE = 3;
 const SW_SHOW = 5;
 const VK_F11 = 0x7a;
+const VK_MENU = 0x12; // ALT, para el truco de SetForegroundWindow
 const KEYEVENTF_KEYUP = 0x0002;
 
 interface NativeApi {
@@ -253,6 +254,10 @@ function buildNative(): NativeApi {
   }
 
   function sendF11(hwnd: bigint): void {
+    // Truco ALT: pulsa y suelta ALT para que Windows permita SetForegroundWindow
+    // desde este proceso (sino lo bloquea por no ser ya el foreground).
+    keybd_event(VK_MENU, 0, 0, 0);
+    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
     SetForegroundWindow(hwnd as never);
     keybd_event(VK_F11, 0, 0, 0);
     keybd_event(VK_F11, 0, KEYEVENTF_KEYUP, 0);

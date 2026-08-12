@@ -125,8 +125,36 @@ export function App(): React.ReactElement {
     }
   }
 
+  const [applyingCocina, setApplyingCocina] = React.useState(false);
+  const [version, setVersion] = React.useState<string>('');
+
+  React.useEffect(() => {
+    const hub = getHub();
+    if (!hub) return;
+    hub
+      .getVersion()
+      .then((v) => setVersion(v))
+      .catch(() => undefined);
+  }, []);
+
+  async function handleApplyCocina(): Promise<void> {
+    const hub = getHub();
+    if (!hub) return;
+    setApplyingCocina(true);
+    setError(null);
+    try {
+      const res = await hub.applyCocina({ kiosk: true });
+      if (res.errors.length) setError('Aplicar cocina: ' + res.errors.join('; '));
+      await refresh();
+    } catch (e) {
+      setError('Aplicar cocina: ' + (e as Error).message);
+    } finally {
+      setApplyingCocina(false);
+    }
+  }
+
   const windowByMonitor = new Map<number, WindowInfo>();
-  for (const w of windows) {
+  for (const w of windowsWithThumbs) {
     if (!windowByMonitor.has(w.monitorIndex)) windowByMonitor.set(w.monitorIndex, w);
   }
 
@@ -137,6 +165,14 @@ export function App(): React.ReactElement {
           <span className="title">Gambusinas Monitor Hub</span>
           <HubStatus />
           <span className="spacer" />
+          <button
+            className="primary"
+            disabled={applyingCocina}
+            onClick={handleApplyCocina}
+            title="Lee el layout enviado desde App Cocina y abre cada ventana en su monitor en pantalla completa (kiosk)"
+          >
+            {applyingCocina ? 'Aplicando…' : 'Aplicar Cocina (pantalla completa)'}
+          </button>
           <button onClick={handleIdentify}>Identificar monitores</button>
           <button onClick={() => void refresh()}>Actualizar</button>
         </div>
@@ -151,12 +187,17 @@ export function App(): React.ReactElement {
                 monitor={m}
                 windowOnMonitor={windowByMonitor.get(m.index)}
                 onIdentify={handleIdentify}
+                onSetMode={handleSetMode}
               />
             ))}
           </div>
         )}
         <div style={{ marginTop: 16 }}>
           <LayoutPanel monitors={monitors} windows={windows} onRefresh={() => void refresh()} />
+        </div>
+        <div className="hub-footer">
+          <span>Monitor Hub v{version || '—'}</span>
+          <span className="muted">Si no es la última, usa el menú → Buscar actualizaciones</span>
         </div>
       </div>
 

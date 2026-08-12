@@ -115,6 +115,7 @@ function registerHubIpc(): void {
   ipcMain.handle(IpcChannel.HUB_CONFIG_GET, () => readConfig());
   ipcMain.handle(IpcChannel.HUB_CONFIG_SET, (_e, cfg: { backendUrl: string }) => saveConfig(cfg));
   ipcMain.handle(IpcChannel.HUB_STATUS, () => getStatus());
+  ipcMain.handle(IpcChannel.HUB_VERSION, () => app.getVersion());
   onStatus((s) => {
     for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.send('hub:status-changed', s);
