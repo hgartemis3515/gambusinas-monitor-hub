@@ -26,6 +26,10 @@ export interface HubApi {
   deleteLayout: (id: string) => Promise<void>;
   importFromCocina: () => Promise<CocinaLayoutImport | null>;
   importCocinaFile: () => Promise<CocinaLayoutImport | null>;
+  getHubConfig: () => Promise<{ backendUrl: string }>;
+  setHubConfig: (cfg: { backendUrl: string }) => Promise<void>;
+  getHubStatus: () => Promise<string>;
+  onHubStatus: (cb: (s: string) => void) => void;
 }
 
 try {
@@ -44,6 +48,13 @@ try {
     deleteLayout: (id) => ipcRenderer.invoke(IpcChannel.LAYOUTS_DELETE, id),
     importFromCocina: () => ipcRenderer.invoke(IpcChannel.COCINA_IMPORT),
     importCocinaFile: () => ipcRenderer.invoke(IpcChannel.COCINA_IMPORT_FILE),
+    getHubConfig: () => ipcRenderer.invoke(IpcChannel.HUB_CONFIG_GET),
+    setHubConfig: (cfg) => ipcRenderer.invoke(IpcChannel.HUB_CONFIG_SET, cfg),
+    getHubStatus: () => ipcRenderer.invoke(IpcChannel.HUB_STATUS),
+    onHubStatus: (cb) => {
+      const handler = (_e: unknown, s: string) => cb(s);
+      ipcRenderer.on('hub:status-changed', handler);
+    },
   };
   contextBridge.exposeInMainWorld('hub', api);
   contextBridge.exposeInMainWorld('__hubPreloadOk', true);

@@ -1,9 +1,17 @@
 import { app, BrowserWindow, screen, Menu, shell } from 'electron';
 import { join } from 'node:path';
+import electronUpdater from 'electron-updater';
 import { registerIpc } from './ipc.js';
 import { startCocinaServer } from './cocinaServer.js';
+import { startHubSocket, onStatus, readConfig, saveConfig, getStatus } from './hubSocket.js';
 import { isWin } from './native/win32.js';
 import { logger, getLogFilePath } from '../shared/logger.js';
+import { IpcChannel } from '../shared/ipc-channels.js';
+import { ipcMain } from 'electron';
+
+// electron-updater es CommonJS; con "type":"module" el main corre como ESM,
+// asi que usamos el default import y desestructuramos.
+const { autoUpdater } = electronUpdater as typeof import('electron-updater');
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -80,7 +88,14 @@ function buildMenu(): Menu {
         {
           label: 'Mostrar ruta del preload',
           click: () => {
-            logger.info('preload path', { path: join(__dirname, '../preload/index.js') });
+            logger.info('preload path', { path: join(__dirname, '../preload/index.cjs') });
+          },
+        },
+        {
+          label: 'Buscar actualizaciones',
+          click: () => {
+            if (app.isPackaged) void autoUpdater.checkForUpdatesAndNotify();
+            else logger.info('autoUpdater: ignorado en dev');
           },
         },
       ],
@@ -96,6 +111,36 @@ function checkPlatform(): boolean {
   return true;
 }
 
+function registerHubIpc(): void {
+  ipcMain.handle(IpcChannel.HUB_CONFIG_GET, () => readConfig());
+  ipcMain.handle(IpcChannel.HUB_CONFIG_SET, (_e, cfg: { backendUrl: string }) => saveConfig(cfg));
+  ipcMain.handle(IpcChannel.HUB_STATUS, () => getStatus());
+  onStatus((s) => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      w.webContents.send('hub:status-changed', s);
+    }
+  });
+}
+
+// Auto-update: al abrir el Hub, busca actualizaciones; si hay, descarga e
+// instala silenciosamente y reinicia la app. Solo en app empaquetada (no dev).
+function setupAutoUpdater(): void {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-available', (info) => {
+    logger.info('autoUpdater: actualizacion disponible', { version: info.version });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    logger.info('autoUpdater: actualizacion descargada, instalando', { version: info.version });
+    autoUpdater.quitAndInstall();
+  });
+  autoUpdater.on('error', (err) => {
+    logger.warn('autoUpdater: error', { message: err.message });
+  });
+  void autoUpdater.checkForUpdatesAndNotify();
+}
+
 app.whenReady().then(() => {
   if (!checkPlatform()) {
     app.quit();
@@ -103,7 +148,12 @@ app.whenReady().then(() => {
   }
   Menu.setApplicationMenu(buildMenu());
   registerIpc();
+  registerHubIpc();
   startCocinaServer();
+  // Conecta al backend por socket (conexion saliente, sin firewall inbound).
+  void startHubSocket();
+  // Busca actualizaciones automaticas al abrir el Hub.
+  setupAutoUpdater();
   createWindow();
 
   app.on('activate', () => {

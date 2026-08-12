@@ -9,6 +9,9 @@ export const IpcChannel = {
   LAYOUTS_SAVE: 'layouts:save',
   LAYOUTS_APPLY: 'layouts:apply',
   LAYOUTS_DELETE: 'layouts:delete',
+  HUB_STATUS: 'hub:status',
+  HUB_CONFIG_GET: 'hub:config:get',
+  HUB_CONFIG_SET: 'hub:config:set',
   COCINA_IMPORT: 'cocina:import',
   COCINA_IMPORT_FILE: 'cocina:importFile',
 } as const;

@@ -4,6 +4,7 @@ import type { HubApi } from '../preload/index';
 import { MonitorCard } from './components/MonitorCard';
 import { WindowPicker } from './components/WindowPicker';
 import { LayoutPanel } from './components/LayoutPanel';
+import { HubStatus } from './components/HubStatus';
 
 const POLL_MS = 3000;
 const THUMB_MS = 5000;
@@ -134,6 +135,7 @@ export function App(): React.ReactElement {
       <div className="panel">
         <div className="topbar">
           <span className="title">Gambusinas Monitor Hub</span>
+          <HubStatus />
           <span className="spacer" />
           <button onClick={handleIdentify}>Identificar monitores</button>
           <button onClick={() => void refresh()}>Actualizar</button>

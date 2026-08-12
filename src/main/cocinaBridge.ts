@@ -35,6 +35,15 @@ export async function clearInbox(): Promise<void> {
   }
 }
 
+export async function writeInbox(data: CocinaLayoutImport): Promise<string> {
+  await fs.mkdir(inboxDir(), { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const file = join(inboxDir(), `cocina-${stamp}.json`);
+  await fs.writeFile(file, JSON.stringify(data, null, 2), 'utf8');
+  logger.info('cocinaBridge: inbox escrito', { file, slots: data.slots?.length });
+  return file;
+}
+
 export async function importFromFile(): Promise<CocinaLayoutImport | null> {
   const result = await dialog.showOpenDialog({
     title: 'Importar layout desde App Cocina',

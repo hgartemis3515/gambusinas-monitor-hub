@@ -30,6 +30,11 @@ select, input {
 }
 .topbar .title { font-size: 18px; font-weight: 700; }
 .topbar .spacer { flex: 1; }
+.hub-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; margin-left: 8px; }
+.hub-status .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.hub-status .dot.ok { background: #16a34a; box-shadow: 0 0 6px rgba(22,163,74,0.6); }
+.hub-status .dot.warn { background: #f59e0b; }
+.hub-status-text { font-size: 12px; }
 .monitor-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;
 }
