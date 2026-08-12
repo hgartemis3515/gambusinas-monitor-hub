@@ -8,8 +8,15 @@ Launcher de escritorio Windows (estilo DisplayFusion) para distribuir ventanas e
 - Fase 2 — Electron + UI React: **hecho**
 - Fase 3 — Modos de ventana (normal/maximizado/fullscreen): **hecho**
 - Fase 4 — Perfiles de layout (guardar/aplicar/borrar): **hecho**
-- Fase 5 — Bridge con App Cocina (inbox + archivo JSON): **hecho**
+- Fase 5 — Bridge con App Cocina (inbox + archivo JSON + HTTP local): **hecho**
 - Fase 6 — Pulido (polling, errores, identificar monitores): **hecho**
+- Instalador NSIS (Windows): **publicado como Release**
+
+## Descarga
+
+Instalador Windows: https://github.com/hgartemis3515/gambusinas-monitor-hub/releases/tag/v0.1.0
+
+Archivo: `GambusinasMonitorHub-Setup-0.1.0.exe` (~83 MB). Requiere Windows 10/11 x64.
 
 ## Uso
 
@@ -70,9 +77,16 @@ Canales: `monitors:list`, `monitors:identify`, `windows:list`, `window:move`,
 
 ## Integración con App Cocina
 
-El Hub lee layouts desde:
-- **Inbox**: `%APPDATA%/Gambusinas Monitor Hub/cocina-inbox/*.json` (escrito por App Cocina).
-- **Archivo**: botón "Importar archivo JSON…" (dialogo de archivo).
+El Hub lee layouts desde tres vías:
+
+1. **HTTP local** (recomendado): App Cocina hace `POST http://127.0.0.1:7331/import`
+   con el body `CocinaLayoutImport`. El Hub lo guarda en el inbox y queda listo
+   para importar/aplicar. En `DistribuirCocinaMonitoresPage` hay un botón
+   **"Enviar al Monitor Hub"** que envía la asignación actual por esta vía
+   (requiere que el Hub corra en la misma PC que App Cocina).
+2. **Inbox**: `%APPDATA%/Gambusinas Monitor Hub/cocina-inbox/*.json` (escrito
+   por la vía HTTP o manualmente).
+3. **Archivo**: botón "Importar archivo JSON…" (diálogo de archivo).
 
 Formato esperado (`CocinaLayoutImport`):
 
