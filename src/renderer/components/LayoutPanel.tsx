@@ -9,7 +9,7 @@ interface Props {
 
 function deriveSlotsFromCurrent(windows: WindowInfo[]): LayoutSlot[] {
   return windows
-    .filter((w) => w.monitorIndex >= 1)
+    .filter((w) => w.monitorIndex > 1)
     .map((w) => ({
       monitorIndex: w.monitorIndex,
       match: { titleContains: w.title },

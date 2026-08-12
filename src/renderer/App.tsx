@@ -15,6 +15,11 @@ export function App(): React.ReactElement {
   const [loading, setLoading] = React.useState(true);
 
   const refresh = React.useCallback(async () => {
+    if (typeof window === 'undefined' || !window.hub) {
+      setError('El preload del Hub no cargó. Reinstala la app o contacta soporte.');
+      setLoading(false);
+      return;
+    }
     try {
       const [ms, ws] = await Promise.all([
         window.hub.listMonitors(),

@@ -1,0 +1,26 @@
+Fix: preload no cargaba en la app empaquetada (window.hub undefined)
+
+Sintomas reportados en PC con 3 monitores:
+1. "Cannot read properties of undefined (reading 'listMonitors')" al
+   pulsar Identificar monitores.
+2. Guardar perfil de layout no funcionaba.
+
+Causa raiz:
+- electron-vite compilaba el preload como `out/preload/index.mjs`
+  (por "type":"module" en package.json), pero main/index.ts referenciaba
+  `../preload/index.js`. En la app empaquetada el preload no existia en
+  esa ruta -> no cargaba -> contextBridge no exponia window.hub -> TODOS
+  los IPC fallaban (listMonitors, identifyMonitors, saveLayout).
+- En dev funcionaba porque electron-vite sirve el preload distinto.
+
+Fix:
+- electron.vite.config.ts: preload build con output format cjs y
+  entryFileNames '[name].js' para que el preload salga como .js
+  (ruta que main espera).
+- renderer/App.tsx: guard defensivo si window.hub es undefined muestra
+  banner claro en vez de crash silencioso.
+- LayoutPanel: deriveSlotsFromCurrent excluye el monitor 1 (primario,
+  es el de control, no se guarda como slot pasivo).
+
+Rebuild: GambusinasMonitorHub-Setup-0.1.0.exe regenerado y re-subido
+al Release v0.1.0 (mismo nombre, reemplazado con --clobber).
