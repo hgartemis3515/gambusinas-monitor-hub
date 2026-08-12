@@ -1,7 +1,7 @@
 import { getNative } from './native/win32.js';
 import { listMonitors } from './monitors.js';
-import type { WindowInfo, WindowProcessFilter } from './types.js';
-import { logger } from './logger.js';
+import type { WindowInfo, WindowProcessFilter } from '../shared/types.js';
+import { logger } from '../shared/logger.js';
 
 const PROCESS_MATCHERS: Record<WindowProcessFilter, (name: string) => boolean> = {
   all: () => true,

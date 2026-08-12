@@ -1,7 +1,7 @@
 import { getNative, constants } from './native/win32.js';
 import { listMonitors } from './monitors.js';
-import type { WindowMode } from './types.js';
-import { logger } from './logger.js';
+import type { WindowMode } from '../shared/types.js';
+import { logger } from '../shared/logger.js';
 
 const { SW_RESTORE, SW_MAXIMIZE, SW_SHOW, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE } =
   constants;

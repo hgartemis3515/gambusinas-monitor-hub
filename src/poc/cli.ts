@@ -1,8 +1,8 @@
-import { listMonitors } from '../monitors.js';
-import { listWindows } from '../windows.js';
-import { moveWindowToMonitor, setWindowMode } from '../windowManager.js';
-import { isWin } from '../native/win32.js';
-import type { WindowProcessFilter } from '../types.js';
+import { listMonitors } from '../main/monitors.js';
+import { listWindows } from '../main/windows.js';
+import { moveWindowToMonitor, setWindowMode } from '../main/windowManager.js';
+import { isWin } from '../main/native/win32.js';
+import type { WindowProcessFilter } from '../shared/types.js';
 
 function usage(): void {
   console.log(`Uso:

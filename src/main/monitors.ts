@@ -1,6 +1,6 @@
 import { getNative } from './native/win32.js';
-import type { MonitorInfo } from './types.js';
-import { logger } from './logger.js';
+import type { MonitorInfo } from '../shared/types.js';
+import { logger } from '../shared/logger.js';
 
 export function listMonitors(): MonitorInfo[] {
   const native = getNative();

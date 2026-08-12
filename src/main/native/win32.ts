@@ -1,6 +1,6 @@
 import koffi from 'koffi';
 import { platform } from 'node:os';
-import type { MonitorBounds, RawMonitorData } from '../types.js';
+import type { MonitorBounds, RawMonitorData } from '../../shared/types.js';
 
 const isWindows = platform() === 'win32';
 

@@ -41,3 +41,25 @@ export interface RawMonitorData {
   isPrimary: boolean;
   deviceName?: string;
 }
+
+export interface LayoutSlot {
+  monitorIndex: number;
+  match?: { process?: string; titleContains?: string };
+  url?: string;
+  mode: WindowMode;
+  label?: string;
+}
+
+export interface LayoutProfile {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  slots: LayoutSlot[];
+}
+
+export interface CocinaLayoutImport {
+  source: 'appcocina';
+  profileName?: string;
+  slots: LayoutSlot[];
+}
