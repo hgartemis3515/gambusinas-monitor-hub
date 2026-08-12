@@ -1,4 +1,4 @@
-import { ipcMain, shell, BrowserWindow } from 'electron';
+import { ipcMain, shell, BrowserWindow, desktopCapturer } from 'electron';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -46,12 +46,16 @@ function matchWindow(slots: WindowInfo[], slot: LayoutSlot): WindowInfo | undefi
   });
 }
 
-async function applyLayout(profile: LayoutProfile): Promise<{ applied: number; opened: number; errors: string[] }> {
+async function applyLayout(
+  profile: LayoutProfile,
+  opts?: { kiosk?: boolean },
+): Promise<{ applied: number; opened: number; errors: string[] }> {
   const monitors = listMonitors();
   const errors: string[] = [];
   let applied = 0;
   let opened = 0;
   const chromePath = findChromePath();
+  const kiosk = opts?.kiosk !== false; // default true
 
   for (const slot of profile.slots) {
     const monitor = monitors.find((m) => m.index === slot.monitorIndex);
@@ -69,15 +73,14 @@ async function applyLayout(profile: LayoutProfile): Promise<{ applied: number; o
         errors.push(`Mover hwnd ${target.hwnd}: ${(err as Error).message}`);
       }
     } else if (slot.url && chromePath) {
-      const args = [
-        '--new-window',
-        `--window-position=${monitor.bounds.x},${monitor.bounds.y}`,
-        `--window-size=${monitor.bounds.width},${monitor.bounds.height}`,
-        slot.url,
-      ];
+      const args = buildSpawnArgs(slot, monitor.bounds, kiosk);
       spawn(chromePath, args, { detached: true, stdio: 'ignore' }).unref();
       opened++;
-      logger.info('applyLayout: abierto Chrome', { slot: slot.monitorIndex, url: slot.url });
+      logger.info('applyLayout: abierto navegador', {
+        slot: slot.monitorIndex,
+        url: slot.url,
+        kiosk,
+      });
     } else if (slot.url && !chromePath) {
       shell.openExternal(slot.url);
       opened++;
@@ -90,12 +93,63 @@ async function applyLayout(profile: LayoutProfile): Promise<{ applied: number; o
   return { applied, opened, errors };
 }
 
+function buildSpawnArgs(
+  slot: LayoutSlot,
+  bounds: { x: number; y: number; width: number; height: number },
+  kiosk: boolean,
+): string[] {
+  if (slot.mode === 'fullscreen') {
+    // Kiosk: sin URL bar, sin tabs, bloqueado (ideal para cocina).
+    // start-fullscreen: fullscreen del navegador (F11-like), se puede salir con F11.
+    return kiosk
+      ? ['--kiosk', '--disable-pinch', '--no-default-browser-check', slot.url!]
+      : [
+          '--new-window',
+          '--start-fullscreen',
+          `--window-position=${bounds.x},${bounds.y}`,
+          `--window-size=${bounds.width},${bounds.height}`,
+          slot.url!,
+        ];
+  }
+  return [
+    '--new-window',
+    `--window-position=${bounds.x},${bounds.y}`,
+    `--window-size=${bounds.width},${bounds.height}`,
+    slot.url!,
+  ];
+}
+
 export function registerIpc(): void {
   ipcMain.handle(IpcChannel.MONITORS_LIST, () => listMonitors());
 
   ipcMain.handle(IpcChannel.WINDOWS_LIST, (_e, filter: WindowProcessFilter = 'all') =>
     listWindows(filter),
   );
+
+  ipcMain.handle(IpcChannel.WINDOWS_THUMBNAILS, async () => {
+    try {
+      const windows = listWindows('all');
+      const sources = await desktopCapturer.getSources({
+        types: ['window'],
+        thumbnailSize: { width: 320, height: 180 },
+        fetchWindowIcons: true,
+      });
+      const byTitle = new Map<string, string>();
+      for (const s of sources) {
+        const key = s.name.trim().toLowerCase();
+        if (s.thumbnail && !byTitle.has(key)) {
+          byTitle.set(key, s.thumbnail.toDataURL());
+        }
+      }
+      return windows.map((w) => ({
+        ...w,
+        thumbnail: byTitle.get(w.title.trim().toLowerCase()),
+      }));
+    } catch (err) {
+      logger.error('thumbnails', { message: (err as Error).message });
+      return listWindows('all');
+    }
+  });
 
   ipcMain.handle(
     IpcChannel.WINDOW_MOVE,
@@ -123,11 +177,11 @@ export function registerIpc(): void {
 
   ipcMain.handle(IpcChannel.LAYOUTS_DELETE, (_e, id: string) => deleteLayout(id));
 
-  ipcMain.handle(IpcChannel.LAYOUTS_APPLY, async (_e, id: string) => {
+  ipcMain.handle(IpcChannel.LAYOUTS_APPLY, async (_e, id: string, opts?: { kiosk?: boolean }) => {
     const { getLayout } = await import('./layoutStore.js');
     const profile = await getLayout(id);
     if (!profile) throw new Error('Perfil no encontrado: ' + id);
-    return applyLayout(profile);
+    return applyLayout(profile, opts);
   });
 
   ipcMain.handle(IpcChannel.COCINA_IMPORT, async () => {

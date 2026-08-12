@@ -14,11 +14,15 @@ export interface HubApi {
   listMonitors: () => Promise<MonitorInfo[]>;
   identifyMonitors: () => Promise<boolean>;
   listWindows: (filter?: WindowProcessFilter) => Promise<WindowInfo[]>;
+  listThumbnails: () => Promise<WindowInfo[]>;
   moveWindow: (hwnd: number, monitorIndex: number, mode?: WindowMode) => Promise<boolean>;
   setWindowMode: (hwnd: number, mode: WindowMode) => Promise<boolean>;
   listLayouts: () => Promise<LayoutProfile[]>;
   saveLayout: (name: string, slots: LayoutSlot[]) => Promise<LayoutProfile>;
-  applyLayout: (id: string) => Promise<{ applied: number; opened: number; errors: string[] }>;
+  applyLayout: (
+    id: string,
+    opts?: { kiosk?: boolean },
+  ) => Promise<{ applied: number; opened: number; errors: string[] }>;
   deleteLayout: (id: string) => Promise<void>;
   importFromCocina: () => Promise<CocinaLayoutImport | null>;
   importCocinaFile: () => Promise<CocinaLayoutImport | null>;
@@ -30,12 +34,13 @@ try {
     identifyMonitors: () => ipcRenderer.invoke(IpcChannel.MONITORS_IDENTIFY),
     listWindows: (filter: WindowProcessFilter = 'all') =>
       ipcRenderer.invoke(IpcChannel.WINDOWS_LIST, filter),
+    listThumbnails: () => ipcRenderer.invoke(IpcChannel.WINDOWS_THUMBNAILS),
     moveWindow: (hwnd: number, monitorIndex: number, mode: WindowMode = 'normal') =>
       ipcRenderer.invoke(IpcChannel.WINDOW_MOVE, hwnd, monitorIndex, mode),
     setWindowMode: (hwnd, mode) => ipcRenderer.invoke(IpcChannel.WINDOW_SET_MODE, hwnd, mode),
     listLayouts: () => ipcRenderer.invoke(IpcChannel.LAYOUTS_LIST),
     saveLayout: (name, slots) => ipcRenderer.invoke(IpcChannel.LAYOUTS_SAVE, name, slots),
-    applyLayout: (id) => ipcRenderer.invoke(IpcChannel.LAYOUTS_APPLY, id),
+    applyLayout: (id, opts) => ipcRenderer.invoke(IpcChannel.LAYOUTS_APPLY, id, opts),
     deleteLayout: (id) => ipcRenderer.invoke(IpcChannel.LAYOUTS_DELETE, id),
     importFromCocina: () => ipcRenderer.invoke(IpcChannel.COCINA_IMPORT),
     importCocinaFile: () => ipcRenderer.invoke(IpcChannel.COCINA_IMPORT_FILE),

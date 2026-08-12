@@ -22,6 +22,15 @@ export function LayoutPanel({ monitors, windows, onRefresh }: Props): React.Reac
   const [name, setName] = React.useState('');
   const [msg, setMsg] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [applying, setApplying] = React.useState(false);
+  const [kioskMode, setKioskMode] = React.useState<boolean>(() => {
+    return localStorage.getItem('hub:kiosk') !== '0';
+  });
+
+  function setKiosk(v: boolean): void {
+    setKioskMode(v);
+    localStorage.setItem('hub:kiosk', v ? '1' : '0');
+  }
 
   async function reload(): Promise<void> {
     const hub = window.hub;
@@ -55,15 +64,17 @@ export function LayoutPanel({ monitors, windows, onRefresh }: Props): React.Reac
 
   async function apply(id: string): Promise<void> {
     setBusy(true);
+    setApplying(true);
     setMsg(null);
     try {
-      const res = await window.hub.applyLayout(id);
+      const res = await window.hub.applyLayout(id, { kiosk: kioskMode });
       setMsg(`Aplicado: ${res.applied} movidas, ${res.opened} abiertas${res.errors.length ? ', ' + res.errors.join('; ') : ''}`);
       onRefresh();
     } catch (e) {
       setMsg('Error al aplicar: ' + (e as Error).message);
     } finally {
       setBusy(false);
+      setApplying(false);
     }
   }
 
@@ -137,6 +148,17 @@ export function LayoutPanel({ monitors, windows, onRefresh }: Props): React.Reac
         </button>
       </div>
 
+      <div className="row">
+        <label className="kiosk-label" title="Kiosk: pantalla bloqueada sin barra de URL ni pestañas. Ideal para pantallas de cocina fijas.">
+          <input
+            type="checkbox"
+            checked={kioskMode}
+            onChange={(e) => setKiosk(e.target.checked)}
+          />{' '}
+          Kiosk (pantalla bloqueada, sin URL)
+        </label>
+      </div>
+
       <div className="win-list" style={{ marginTop: 12 }}>
         {profiles.length === 0 && <div className="muted">Sin perfiles guardados.</div>}
         {profiles.map((p) => (
@@ -163,6 +185,15 @@ export function LayoutPanel({ monitors, windows, onRefresh }: Props): React.Reac
       <div className="muted" style={{ marginTop: 8 }}>
         {monitors.length} monitores · {windows.length} ventanas
       </div>
+
+      {applying && (
+        <div className="apply-overlay">
+          <div className="box">
+            <div className="msg">Aplicando layout…</div>
+            <div className="sub">Moviendo ventanas a sus monitores</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

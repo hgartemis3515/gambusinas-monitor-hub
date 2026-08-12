@@ -3,8 +3,18 @@ import { listMonitors } from './monitors.js';
 import type { WindowMode } from '../shared/types.js';
 import { logger } from '../shared/logger.js';
 
-const { SW_RESTORE, SW_MAXIMIZE, SW_SHOW, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE } =
-  constants;
+const { SW_RESTORE, SW_MAXIMIZE } = constants;
+
+// Trackea qué hwnds pusimos en fullscreen (browser) via F11.
+// F11 es un toggle: si ya está fullscreen, enviarlo de nuevo lo saca.
+const fullscreenHwnds = new Set<number>();
+
+function exitBrowserFullscreenIfTracked(hwnd: number): void {
+  if (fullscreenHwnds.has(hwnd)) {
+    getNative().sendF11(BigInt(hwnd));
+    fullscreenHwnds.delete(hwnd);
+  }
+}
 
 export function moveWindowToMonitor(
   hwnd: number,
@@ -17,6 +27,8 @@ export function moveWindowToMonitor(
     throw new Error(`Monitor ${monitorIndex} no encontrado`);
   }
   const h = BigInt(hwnd);
+  // Si estaba en fullscreen (F11) y lo movemos a otro modo, salimos primero.
+  exitBrowserFullscreenIfTracked(hwnd);
   native.showWindow(h, SW_RESTORE);
   native.setWindowPos(
     h,
@@ -38,22 +50,28 @@ function applyMode(hwnd: number, mode: WindowMode): void {
   const native = getNative();
   const h = BigInt(hwnd);
   if (mode === 'normal') {
+    exitBrowserFullscreenIfTracked(hwnd);
     native.showWindow(h, SW_RESTORE);
     return;
   }
   if (mode === 'maximized') {
+    exitBrowserFullscreenIfTracked(hwnd);
     native.showWindow(h, SW_MAXIMIZE);
     return;
   }
-  // fullscreen real (borderless cubriendo el monitor actual)
-  const monitors = listMonitors();
-  const monHandle = native.monitorFromWindow(h);
-  const raw = native.enumMonitors().find((r) => r.handle === monHandle);
-  const bounds = raw?.bounds ?? monitors[0]?.bounds;
-  if (!bounds) throw new Error('No se pudo determinar el monitor de la ventana');
-  const style = native.getWindowStyle(h);
-  const clean = style & ~WS_OVERLAPPEDWINDOW;
-  native.setWindowStyle(h, clean | WS_POPUP | WS_VISIBLE);
-  native.setWindowPos(h, bounds.x, bounds.y, bounds.width, bounds.height);
-  native.showWindow(h, SW_SHOW);
+  // fullscreen real del navegador via F11 (oculta URL bar / tabs).
+  // F11 es toggle: solo lo enviamos si no lo trackeamos ya en fullscreen.
+  if (!fullscreenHwnds.has(hwnd)) {
+    native.sendF11(h);
+    fullscreenHwnds.add(hwnd);
+  }
+}
+
+// Limpieza: si una ventana ya no existe, sacar su hwnd del set.
+// (Llamado periodicamente desde ipc si hace falta; por ahora best-effort.)
+export function pruneFullscreenHwnds(aliveHwnds: number[]): void {
+  const alive = new Set(aliveHwnds);
+  for (const h of [...fullscreenHwnds]) {
+    if (!alive.has(h)) fullscreenHwnds.delete(h);
+  }
 }

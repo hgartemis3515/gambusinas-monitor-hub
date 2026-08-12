@@ -18,6 +18,8 @@ const SWP_SHOWWINDOW = 0x0040;
 const SW_RESTORE = 9;
 const SW_MAXIMIZE = 3;
 const SW_SHOW = 5;
+const VK_F11 = 0x7a;
+const KEYEVENTF_KEYUP = 0x0002;
 
 interface NativeApi {
   enumMonitors(): RawMonitorData[];
@@ -29,6 +31,7 @@ interface NativeApi {
   getWindowStyle(hwnd: bigint): number;
   setWindowStyle(hwnd: bigint, style: number): void;
   bringToFront(hwnd: bigint): void;
+  sendF11(hwnd: bigint): void;
 }
 
 let _native: NativeApi | null = null;
@@ -101,6 +104,9 @@ function buildNative(): NativeApi {
   );
   const SetForegroundWindow = user32.func(
     'bool SetForegroundWindow(void *hwnd)',
+  );
+  const keybd_event = user32.func(
+    'void keybd_event(uint8 bVk, uint8 bScan, uint32 dwFlags, uintptr dwExtraInfo)',
   );
   const OpenProcess = kernel32.func(
     'void *OpenProcess(uint32 dwDesiredAccess, bool bInheritHandle, uint32 dwProcessId)',
@@ -246,6 +252,12 @@ function buildNative(): NativeApi {
     SetForegroundWindow(hwnd as never);
   }
 
+  function sendF11(hwnd: bigint): void {
+    SetForegroundWindow(hwnd as never);
+    keybd_event(VK_F11, 0, 0, 0);
+    keybd_event(VK_F11, 0, KEYEVENTF_KEYUP, 0);
+  }
+
   return {
     enumMonitors,
     enumWindowsRaw,
@@ -256,6 +268,7 @@ function buildNative(): NativeApi {
     getWindowStyle,
     setWindowStyle,
     bringToFront,
+    sendF11,
   };
 }
 

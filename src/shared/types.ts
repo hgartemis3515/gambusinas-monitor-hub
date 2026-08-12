@@ -27,6 +27,7 @@ export interface WindowInfo {
   pid: number;
   monitorIndex: number;
   visible: boolean;
+  thumbnail?: string;
 }
 
 export interface MonitorHandle {

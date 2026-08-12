@@ -6,7 +6,13 @@ import type { CocinaLayoutImport, LayoutSlot } from '../shared/types.js';
 import { logger } from '../shared/logger.js';
 
 const PORT = 7331;
-const HOST = '127.0.0.1';
+const HOST = '0.0.0.0';
+
+function setCors(res: ServerResponse): void {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
 function inboxDir(): string {
   return join(app.getPath('userData'), 'cocina-inbox');
@@ -41,6 +47,12 @@ function isValidImport(data: unknown): data is CocinaLayoutImport {
 
 export function startCocinaServer(): void {
   const server = createServer(async (req, res) => {
+    setCors(res);
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     if (req.method !== 'POST' || req.url !== '/import') {
       send(res, 404, { error: 'Not found' });
       return;

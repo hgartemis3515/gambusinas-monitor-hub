@@ -48,14 +48,50 @@ select, input {
 .win-row {
   display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: 6px;
   background: #0f172a; border: 1px solid #334155;
+  transition: background 150ms cubic-bezier(0.16,1,0.3,1), border-color 150ms cubic-bezier(0.16,1,0.3,1), transform 150ms cubic-bezier(0.16,1,0.3,1);
+  cursor: pointer;
 }
+.win-row:hover { background: #172033; }
+.win-row:active { transform: scale(0.99); }
 .win-row.selected { border-color: #2563eb; background: #172554; }
+.win-row .thumb {
+  width: 96px; height: 54px; flex: 0 0 96px; border-radius: 6px; overflow: hidden;
+  background: #0b1220; border: 1px solid #334155; display: flex; align-items: center; justify-content: center;
+}
+.win-row .thumb img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 250ms cubic-bezier(0.16,1,0.3,1); }
+.win-row .thumb img[src] { opacity: 1; }
+.win-row .thumb-ph { color: #475569; font-size: 22px; }
 .win-row .info { flex: 1; min-width: 0; }
 .win-row .title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .win-row .sub { font-size: 11px; color: #94a3b8; }
-.win-row .actions { display: flex; gap: 4px; }
+.win-row .actions { display: flex; gap: 4px; transition: opacity 150ms cubic-bezier(0.16,1,0.3,1); }
 .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .muted { color: #64748b; font-size: 12px; }
 .error { color: #fca5a5; font-size: 12px; }
 .layout-slot { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
 .layout-slot select { flex: 1; }
+.kiosk-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #cbd5e1; cursor: pointer; }
+.kiosk-label input { cursor: pointer; }
+
+/* Monitor card transitions */
+.monitor-card {
+  background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px;
+  transition: border-color 250ms cubic-bezier(0.16,1,0.3,1), box-shadow 250ms cubic-bezier(0.16,1,0.3,1), transform 150ms cubic-bezier(0.16,1,0.3,1);
+}
+.monitor-card:hover { transform: translateY(-1px); }
+.monitor-card.primary { border-color: #2563eb; }
+.monitor-card.tx-glow { border-color: #16a34a; box-shadow: 0 0 0 1px #16a34a, 0 0 12px rgba(22,163,74,0.25); }
+
+/* Overlay "Aplicando layout" */
+.apply-overlay {
+  position: fixed; inset: 0; background: rgba(2,6,23,0.55); display: flex;
+  align-items: center; justify-content: center; z-index: 50;
+  animation: fadeIn 200ms cubic-bezier(0.16,1,0.3,1);
+}
+.apply-overlay .box {
+  background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px 22px;
+  min-width: 280px; text-align: center;
+}
+.apply-overlay .box .msg { font-size: 14px; color: #e2e8f0; }
+.apply-overlay .box .sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

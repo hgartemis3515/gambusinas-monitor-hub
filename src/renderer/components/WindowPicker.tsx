@@ -45,6 +45,13 @@ export function WindowPicker({
             className={`win-row${selectedHwnd === w.hwnd ? ' selected' : ''}`}
             onClick={() => onSelect(w.hwnd)}
           >
+            <div className="thumb">
+              {w.thumbnail ? (
+                <img src={w.thumbnail} alt={w.title} />
+              ) : (
+                <span className="thumb-ph" title="Sin vista previa">▢</span>
+              )}
+            </div>
             <div className="info">
               <div className="title">{w.title}</div>
               <div className="sub">

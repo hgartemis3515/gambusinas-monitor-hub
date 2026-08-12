@@ -7,9 +7,10 @@ import { logger, getLogFilePath } from '../shared/logger.js';
 
 let mainWindow: BrowserWindow | null = null;
 
-// Build diagnostico: abre DevTools para ver errores de preload/renderer.
-// Quitar OPEN_DEVTOOLS cuando la app este estable en produccion.
-const OPEN_DEVTOOLS = true;
+// DevTools: abierto en desarrollo (no empaquetado) o si la variable de entorno
+// MONITOR_HUB_DEVTOOLS=1 lo fuerza. En release estable queda cerrado
+// (se puede abrir desde el menu Archivo -> Alternar DevTools).
+const OPEN_DEVTOOLS = !app.isPackaged || process.env['MONITOR_HUB_DEVTOOLS'] === '1';
 
 function createWindow(): void {
   const primary = screen.getPrimaryDisplay();

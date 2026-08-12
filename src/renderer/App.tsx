@@ -6,10 +6,12 @@ import { WindowPicker } from './components/WindowPicker';
 import { LayoutPanel } from './components/LayoutPanel';
 
 const POLL_MS = 3000;
+const THUMB_MS = 5000;
 
 export function App(): React.ReactElement {
   const [monitors, setMonitors] = React.useState<MonitorInfo[]>([]);
   const [windows, setWindows] = React.useState<WindowInfo[]>([]);
+  const [thumbs, setThumbs] = React.useState<WindowInfo[]>([]);
   const [filter, setFilter] = React.useState<WindowProcessFilter>('all');
   const [selectedHwnd, setSelectedHwnd] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -57,6 +59,33 @@ export function App(): React.ReactElement {
     }, POLL_MS);
     return () => clearInterval(id);
   }, [refresh]);
+
+  const refreshThumbs = React.useCallback(async () => {
+    const hub = getHub();
+    if (!hub) return;
+    try {
+      const t = await hub.listThumbnails();
+      setThumbs(t);
+    } catch {
+      /* thumbnails best-effort */
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refreshThumbs();
+    const id = setInterval(() => {
+      void refreshThumbs();
+    }, THUMB_MS);
+    return () => clearInterval(id);
+  }, [refreshThumbs]);
+
+  // Merge thumbnails into windows (by hwnd).
+  const thumbByHwnd = new Map<number, string | undefined>();
+  for (const t of thumbs) thumbByHwnd.set(t.hwnd, t.thumbnail);
+  const windowsWithThumbs: WindowInfo[] = windows.map((w) => ({
+    ...w,
+    thumbnail: w.thumbnail ?? thumbByHwnd.get(w.hwnd),
+  }));
 
   function getHub(): HubApi | null {
     const w = window as unknown as { hub?: HubApi };
@@ -132,7 +161,7 @@ export function App(): React.ReactElement {
       <div className="panel">
         <h2>Ventanas abiertas</h2>
         <WindowPicker
-          windows={windows}
+          windows={windowsWithThumbs}
           monitors={monitors}
           filter={filter}
           selectedHwnd={selectedHwnd}
