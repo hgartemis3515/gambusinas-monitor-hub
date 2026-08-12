@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen } from 'electron';
 import { join } from 'node:path';
 import { registerIpc } from './ipc.js';
+import { startCocinaServer } from './cocinaServer.js';
 import { isWin } from './native/win32.js';
 import { logger } from '../shared/logger.js';
 
@@ -52,6 +53,7 @@ app.whenReady().then(() => {
     return;
   }
   registerIpc();
+  startCocinaServer();
   createWindow();
 
   app.on('activate', () => {
