@@ -3,44 +3,65 @@ import { app, dialog } from 'electron';
 import { join } from 'node:path';
 import type { CocinaLayoutImport, LayoutSlot } from '../shared/types.js';
 import { logger } from '../shared/logger.js';
+import { notifyInboxUpdated } from './inboxEvents.js';
 
 function inboxDir(): string {
   return join(app.getPath('userData'), 'cocina-inbox');
 }
 
-export async function readInbox(): Promise<CocinaLayoutImport | null> {
-  try {
-    const dir = inboxDir();
-    const files = await fs.readdir(dir);
-    const json = files.find((f) => f.endsWith('.json'));
-    if (!json) return null;
-    const raw = await fs.readFile(join(dir, json), 'utf8');
-    const data = JSON.parse(raw) as CocinaLayoutImport;
-    logger.info('cocinaBridge: inbox leído', { file: json, slots: data.slots?.length });
-    return data;
-  } catch {
-    return null;
-  }
+function latestPath(): string {
+  return join(inboxDir(), 'latest.json');
 }
 
-export async function clearInbox(): Promise<void> {
+async function clearJsonFiles(except?: string): Promise<void> {
   try {
     const dir = inboxDir();
     const files = await fs.readdir(dir);
     for (const f of files) {
-      if (f.endsWith('.json')) await fs.unlink(join(dir, f));
+      if (!f.endsWith('.json')) continue;
+      const full = join(dir, f);
+      if (except && full === except) continue;
+      await fs.unlink(full).catch(() => undefined);
     }
   } catch {
     /* noop */
   }
 }
 
+export async function readInbox(): Promise<CocinaLayoutImport | null> {
+  try {
+    const latest = latestPath();
+    try {
+      const raw = await fs.readFile(latest, 'utf8');
+      const data = JSON.parse(raw) as CocinaLayoutImport;
+      logger.info('cocinaBridge: inbox leído', { file: 'latest.json', slots: data.slots?.length });
+      return data;
+    } catch {
+      const dir = inboxDir();
+      const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.json')).sort();
+      const json = files[files.length - 1];
+      if (!json) return null;
+      const raw = await fs.readFile(join(dir, json), 'utf8');
+      const data = JSON.parse(raw) as CocinaLayoutImport;
+      logger.info('cocinaBridge: inbox leído (legacy)', { file: json, slots: data.slots?.length });
+      return data;
+    }
+  } catch {
+    return null;
+  }
+}
+
+export async function clearInbox(): Promise<void> {
+  await clearJsonFiles();
+}
+
 export async function writeInbox(data: CocinaLayoutImport): Promise<string> {
   await fs.mkdir(inboxDir(), { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const file = join(inboxDir(), `cocina-${stamp}.json`);
+  const file = latestPath();
   await fs.writeFile(file, JSON.stringify(data, null, 2), 'utf8');
+  await clearJsonFiles(file);
   logger.info('cocinaBridge: inbox escrito', { file, slots: data.slots?.length });
+  notifyInboxUpdated();
   return file;
 }
 

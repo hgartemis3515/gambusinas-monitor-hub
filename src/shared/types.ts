@@ -43,12 +43,32 @@ export interface RawMonitorData {
   deviceName?: string;
 }
 
+export type PreviewScale = 1 | 1.5 | 2;
+
+export interface HubConfig {
+  backendUrl: string;
+  previewScale: PreviewScale;
+  previewIntervalMs: number;
+  fullscreenOnDeploy: boolean;
+  autoDeployOnReceive: boolean;
+}
+
+export interface MonitorPreview {
+  monitorIndex: number;
+  dataUrl?: string;
+}
+
 export interface LayoutSlot {
   monitorIndex: number;
   match?: { process?: string; titleContains?: string };
   url?: string;
   mode: WindowMode;
   label?: string;
+  cocineroId?: string;
+  cocineroNombre?: string;
+  perfil?: string;
+  perfilNombre?: string;
+  listaGuarniciones?: boolean;
 }
 
 export interface LayoutProfile {

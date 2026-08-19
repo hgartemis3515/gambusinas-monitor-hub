@@ -4,14 +4,17 @@ import type {
   LayoutProfile,
   LayoutSlot,
   MonitorInfo,
+  MonitorPreview,
   WindowInfo,
   WindowMode,
   WindowProcessFilter,
   CocinaLayoutImport,
+  HubConfig,
 } from '../shared/types.js';
 
 export interface HubApi {
   listMonitors: () => Promise<MonitorInfo[]>;
+  listMonitorPreviews: () => Promise<MonitorPreview[]>;
   identifyMonitors: () => Promise<boolean>;
   listWindows: (filter?: WindowProcessFilter) => Promise<WindowInfo[]>;
   listThumbnails: () => Promise<WindowInfo[]>;
@@ -29,16 +32,18 @@ export interface HubApi {
   deleteLayout: (id: string) => Promise<void>;
   importFromCocina: () => Promise<CocinaLayoutImport | null>;
   importCocinaFile: () => Promise<CocinaLayoutImport | null>;
-  getHubConfig: () => Promise<{ backendUrl: string }>;
-  setHubConfig: (cfg: { backendUrl: string }) => Promise<void>;
+  getHubConfig: () => Promise<HubConfig>;
+  setHubConfig: (cfg: Partial<HubConfig>) => Promise<void>;
   getHubStatus: () => Promise<string>;
   onHubStatus: (cb: (s: string) => void) => void;
+  onInboxUpdated: (cb: () => void) => () => void;
   getVersion: () => Promise<string>;
 }
 
 try {
   const api: HubApi = {
     listMonitors: () => ipcRenderer.invoke(IpcChannel.MONITORS_LIST),
+    listMonitorPreviews: () => ipcRenderer.invoke(IpcChannel.MONITORS_PREVIEWS),
     identifyMonitors: () => ipcRenderer.invoke(IpcChannel.MONITORS_IDENTIFY),
     listWindows: (filter: WindowProcessFilter = 'all') =>
       ipcRenderer.invoke(IpcChannel.WINDOWS_LIST, filter),
@@ -61,12 +66,17 @@ try {
       const handler = (_e: unknown, s: string) => cb(s);
       ipcRenderer.on('hub:status-changed', handler);
     },
+    onInboxUpdated: (cb) => {
+      const handler = () => cb();
+      ipcRenderer.on('hub:inbox-updated', handler);
+      return () => {
+        ipcRenderer.removeListener('hub:inbox-updated', handler);
+      };
+    },
   };
   contextBridge.exposeInMainWorld('hub', api);
   contextBridge.exposeInMainWorld('__hubPreloadOk', true);
 } catch (err) {
-  // Si el preload falla, exponemos el error para que el renderer lo muestre
-  // en vez de quedar window.hub undefined sin explicacion.
   const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   try {
     contextBridge.exposeInMainWorld('hub', { __error: msg } as unknown as HubApi);

@@ -1,9 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { promises as fs } from 'node:fs';
-import { join } from 'node:path';
-import { app } from 'electron';
 import type { CocinaLayoutImport, LayoutSlot } from '../shared/types.js';
 import { logger } from '../shared/logger.js';
+import { writeInbox } from './cocinaBridge.js';
 
 const PORT = 7331;
 const HOST = '0.0.0.0';
@@ -12,10 +10,6 @@ function setCors(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
-
-function inboxDir(): string {
-  return join(app.getPath('userData'), 'cocina-inbox');
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {
@@ -64,10 +58,7 @@ export function startCocinaServer(): void {
         send(res, 400, { error: 'Payload invalido: se espera { source, profileName?, slots: [] }' });
         return;
       }
-      await fs.mkdir(inboxDir(), { recursive: true });
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const file = join(inboxDir(), `cocina-${stamp}.json`);
-      await fs.writeFile(file, JSON.stringify(parsed, null, 2), 'utf8');
+      const file = await writeInbox(parsed);
       logger.info('cocinaServer: import recibido', {
         slots: (parsed.slots as LayoutSlot[]).length,
         file,

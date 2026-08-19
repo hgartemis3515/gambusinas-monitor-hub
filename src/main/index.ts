@@ -4,9 +4,11 @@ import electronUpdater from 'electron-updater';
 import { registerIpc } from './ipc.js';
 import { startCocinaServer } from './cocinaServer.js';
 import { startHubSocket, onStatus, readConfig, saveConfig, getStatus } from './hubSocket.js';
+import { captureAllMonitors } from './screenCapture.js';
 import { isWin } from './native/win32.js';
 import { logger, getLogFilePath } from '../shared/logger.js';
 import { IpcChannel } from '../shared/ipc-channels.js';
+import type { HubConfig } from '../shared/types.js';
 import { ipcMain } from 'electron';
 
 // electron-updater es CommonJS; con "type":"module" el main corre como ESM,
@@ -25,8 +27,8 @@ function createWindow(): void {
   const { x, y, width, height } = primary.workArea;
 
   mainWindow = new BrowserWindow({
-    width: Math.min(width, 1280),
-    height: Math.min(height, 800),
+    width: Math.min(width, 1440),
+    height: Math.min(height, 900),
     x: x + 40,
     y: y + 40,
     title: 'Gambusinas Monitor Hub',
@@ -113,7 +115,7 @@ function checkPlatform(): boolean {
 
 function registerHubIpc(): void {
   ipcMain.handle(IpcChannel.HUB_CONFIG_GET, () => readConfig());
-  ipcMain.handle(IpcChannel.HUB_CONFIG_SET, (_e, cfg: { backendUrl: string }) => saveConfig(cfg));
+  ipcMain.handle(IpcChannel.HUB_CONFIG_SET, (_e, cfg: Partial<HubConfig>) => saveConfig(cfg));
   ipcMain.handle(IpcChannel.HUB_STATUS, () => getStatus());
   ipcMain.handle(IpcChannel.HUB_VERSION, () => app.getVersion());
   onStatus((s) => {
@@ -151,11 +153,10 @@ app.whenReady().then(() => {
   registerIpc();
   registerHubIpc();
   startCocinaServer();
-  // Conecta al backend por socket (conexion saliente, sin firewall inbound).
   void startHubSocket();
-  // Busca actualizaciones automaticas al abrir el Hub.
   setupAutoUpdater();
   createWindow();
+  void readConfig().then((cfg) => captureAllMonitors(cfg.previewScale));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -33,6 +33,14 @@ interface NativeApi {
   setWindowStyle(hwnd: bigint, style: number): void;
   bringToFront(hwnd: bigint): void;
   sendF11(hwnd: bigint): void;
+  captureRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    dstW: number,
+    dstH: number,
+  ): Buffer | null;
 }
 
 let _native: NativeApi | null = null;
@@ -44,6 +52,9 @@ function buildNative(): NativeApi {
 
   const user32 = koffi.load('user32.dll');
   const kernel32 = koffi.load('kernel32.dll');
+  const gdi32 = koffi.load('gdi32.dll');
+  const SRCCOPY = 0x00cc0020;
+  const HALFTONE = 4;
 
   const RECT = koffi.struct('RECT', {
     left: 'long',
@@ -116,6 +127,40 @@ function buildNative(): NativeApi {
     'bool QueryFullProcessImageNameW(void *hProcess, uint32 dwFlags, uint16 *lpExeName, uint32 *lpdwSize)',
   );
   const CloseHandle = kernel32.func('bool CloseHandle(void *hObject)');
+
+  const BITMAPINFOHEADER = koffi.struct('BITMAPINFOHEADER', {
+    biSize: 'uint32',
+    biWidth: 'int32',
+    biHeight: 'int32',
+    biPlanes: 'uint16',
+    biBitCount: 'uint16',
+    biCompression: 'uint32',
+    biSizeImage: 'uint32',
+    biXPelsPerMeter: 'int32',
+    biYPelsPerMeter: 'int32',
+    biClrUsed: 'uint32',
+    biClrImportant: 'uint32',
+  });
+
+  const GetDC = user32.func('void *GetDC(void *hWnd)');
+  const ReleaseDC = user32.func('int ReleaseDC(void *hWnd, void *hDC)');
+  const CreateCompatibleDC = gdi32.func('void *CreateCompatibleDC(void *hdc)');
+  const CreateCompatibleBitmap = gdi32.func(
+    'void *CreateCompatibleBitmap(void *hdc, int cx, int cy)',
+  );
+  const SelectObject = gdi32.func('void *SelectObject(void *hdc, void *h)');
+  const StretchBlt = gdi32.func(
+    'int StretchBlt(void *hdcDest, int xDest, int yDest, int wDest, int hDest, void *hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc, uint32 rop)',
+  );
+  const SetStretchBltMode = gdi32.func('int SetStretchBltMode(void *hdc, int mode)');
+  const SetBrushOrgEx = gdi32.func(
+    'int SetBrushOrgEx(void *hdc, int x, int y, void *lppt)',
+  );
+  const DeleteDC = gdi32.func('int DeleteDC(void *hdc)');
+  const DeleteObject = gdi32.func('int DeleteObject(void *ho)');
+  const GetDIBits = gdi32.func(
+    'int GetDIBits(void *hdc, void *hbm, uint32 start, uint32 lines, void *bits, void *bmi, uint32 usage)',
+  );
 
   function decodeWchar(arr: ArrayLike<number>, max: number): string {
     const codes: number[] = [];
@@ -263,6 +308,76 @@ function buildNative(): NativeApi {
     keybd_event(VK_F11, 0, KEYEVENTF_KEYUP, 0);
   }
 
+  function captureRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    dstW: number,
+    dstH: number,
+  ): Buffer | null {
+    const width = Math.max(1, Math.floor(dstW));
+    const height = Math.max(1, Math.floor(dstH));
+    const hdcScreen = GetDC(null);
+    if (!hdcScreen) return null;
+    const hdcMem = CreateCompatibleDC(hdcScreen);
+    if (!hdcMem) {
+      ReleaseDC(null, hdcScreen);
+      return null;
+    }
+    const hbm = CreateCompatibleBitmap(hdcScreen, width, height);
+    if (!hbm) {
+      DeleteDC(hdcMem);
+      ReleaseDC(null, hdcScreen);
+      return null;
+    }
+    const prev = SelectObject(hdcMem, hbm);
+    SetStretchBltMode(hdcMem, HALFTONE);
+    SetBrushOrgEx(hdcMem, 0, 0, null);
+    const ok = StretchBlt(
+      hdcMem,
+      0,
+      0,
+      width,
+      height,
+      hdcScreen,
+      Math.floor(x),
+      Math.floor(y),
+      Math.max(1, Math.floor(w)),
+      Math.max(1, Math.floor(h)),
+      SRCCOPY,
+    );
+    if (!ok) {
+      SelectObject(hdcMem, prev);
+      DeleteObject(hbm);
+      DeleteDC(hdcMem);
+      ReleaseDC(null, hdcScreen);
+      return null;
+    }
+    const bmiPtr = koffi.alloc(BITMAPINFOHEADER, 1);
+    koffi.encode(bmiPtr, BITMAPINFOHEADER, {
+      biSize: koffi.sizeof(BITMAPINFOHEADER),
+      biWidth: width,
+      biHeight: -height,
+      biPlanes: 1,
+      biBitCount: 32,
+      biCompression: 0,
+      biSizeImage: 0,
+      biXPelsPerMeter: 0,
+      biYPelsPerMeter: 0,
+      biClrUsed: 0,
+      biClrImportant: 0,
+    });
+    const pixels = Buffer.alloc(width * height * 4);
+    const copied = GetDIBits(hdcMem, hbm, 0, height, pixels, bmiPtr, 0);
+    SelectObject(hdcMem, prev);
+    DeleteObject(hbm);
+    DeleteDC(hdcMem);
+    ReleaseDC(null, hdcScreen);
+    if (!copied) return null;
+    return pixels;
+  }
+
   return {
     enumMonitors,
     enumWindowsRaw,
@@ -274,6 +389,7 @@ function buildNative(): NativeApi {
     setWindowStyle,
     bringToFront,
     sendF11,
+    captureRect,
   };
 }
 
