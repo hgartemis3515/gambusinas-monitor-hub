@@ -17,8 +17,8 @@ import { SettingsPanel } from './components/SettingsPanel';
 
 const DEFAULT_CFG: HubConfig = {
   backendUrl: '',
-  previewScale: 1.5,
-  previewIntervalMs: 400,
+  previewScale: 1,
+  previewIntervalMs: 1500,
   fullscreenOnDeploy: true,
   autoDeployOnReceive: false,
 };
@@ -66,27 +66,39 @@ export function App(): React.ReactElement {
     }
     try {
       const hub = w as HubApi;
-      const [ms, ws] = await Promise.all([hub.listMonitors(), hub.listWindows(filter)]);
+      const ms = await hub.listMonitors();
       setMonitors(ms);
-      setWindows(ws);
+      if (view === 'monitores' || view === 'ventanas' || view === 'layouts') {
+        const ws = await hub.listWindows(filter);
+        setWindows(ws);
+      }
       setError(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, view]);
 
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
 
   React.useEffect(() => {
+    if (view !== 'monitores' && view !== 'ventanas') return;
     const id = setInterval(() => {
       void refresh();
     }, 3000);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refresh, view]);
+
+  React.useEffect(() => {
+    const hub = getHub();
+    void hub?.setPreviewsLive?.(view === 'monitores');
+    return () => {
+      void hub?.setPreviewsLive?.(false);
+    };
+  }, [view]);
 
   const refreshPreviews = React.useCallback(async () => {
     const hub = getHub();
@@ -105,13 +117,13 @@ export function App(): React.ReactElement {
   }, []);
 
   React.useEffect(() => {
+    if (view !== 'monitores') return;
     void refreshPreviews();
-    const ms = Math.max(200, Math.min(2000, cfg.previewIntervalMs || 400));
     const id = setInterval(() => {
       void refreshPreviews();
-    }, ms);
+    }, 1000);
     return () => clearInterval(id);
-  }, [refreshPreviews, cfg.previewIntervalMs, cfg.previewScale]);
+  }, [view, refreshPreviews]);
 
   const refreshThumbs = React.useCallback(async () => {
     const hub = getHub();
@@ -195,11 +207,17 @@ export function App(): React.ReactElement {
   const scaleClass =
     cfg.previewScale === 2 ? 'scale-2' : cfg.previewScale === 1 ? 'scale-1' : 'scale-15';
 
+  function handleView(next: HubView): void {
+    const hub = getHub();
+    void hub?.setPreviewsLive?.(next === 'monitores');
+    setView(next);
+  }
+
   return (
     <div className="hub-shell">
       <Sidebar
         view={view}
-        onView={setView}
+        onView={handleView}
         status={status}
         version={version}
         inboxCount={inboxCount}

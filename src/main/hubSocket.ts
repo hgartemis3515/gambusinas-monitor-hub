@@ -12,8 +12,8 @@ const DEFAULT_BACKEND = 'http://localhost:3000';
 
 export const DEFAULT_HUB_CONFIG: HubConfig = {
   backendUrl: DEFAULT_BACKEND,
-  previewScale: 1.5,
-  previewIntervalMs: 400,
+  previewScale: 1,
+  previewIntervalMs: 1500,
   fullscreenOnDeploy: true,
   autoDeployOnReceive: false,
 };
@@ -44,7 +44,7 @@ function mergeConfig(partial: Partial<HubConfig> | null | undefined): HubConfig 
       : DEFAULT_HUB_CONFIG.backendUrl,
     previewScale,
     previewIntervalMs:
-      typeof interval === 'number' && interval >= 200 && interval <= 2000
+      typeof interval === 'number' && interval >= 1000 && interval <= 5000
         ? Math.round(interval)
         : DEFAULT_HUB_CONFIG.previewIntervalMs,
     fullscreenOnDeploy: partial?.fullscreenOnDeploy ?? DEFAULT_HUB_CONFIG.fullscreenOnDeploy,

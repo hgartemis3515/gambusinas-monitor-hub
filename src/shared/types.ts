@@ -83,4 +83,6 @@ export interface CocinaLayoutImport {
   source: 'appcocina';
   profileName?: string;
   slots: LayoutSlot[];
+  /** JSON `{ token, usuario }` para inyectar sesión en Chrome kiosk (perfil vacío). */
+  authBundle?: string;
 }

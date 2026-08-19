@@ -2,6 +2,7 @@ export const IpcChannel = {
   MONITORS_LIST: 'monitors:list',
   MONITORS_IDENTIFY: 'monitors:identify',
   MONITORS_PREVIEWS: 'monitors:previews',
+  MONITORS_PREVIEWS_LIVE: 'monitors:previewsLive',
   WINDOWS_LIST: 'windows:list',
   WINDOWS_THUMBNAILS: 'windows:thumbnails',
   WINDOW_MOVE: 'window:move',

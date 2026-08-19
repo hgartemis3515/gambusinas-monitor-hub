@@ -54,7 +54,7 @@ function buildNative(): NativeApi {
   const kernel32 = koffi.load('kernel32.dll');
   const gdi32 = koffi.load('gdi32.dll');
   const SRCCOPY = 0x00cc0020;
-  const HALFTONE = 4;
+  const COLORONCOLOR = 3;
 
   const RECT = koffi.struct('RECT', {
     left: 'long',
@@ -332,7 +332,7 @@ function buildNative(): NativeApi {
       return null;
     }
     const prev = SelectObject(hdcMem, hbm);
-    SetStretchBltMode(hdcMem, HALFTONE);
+    SetStretchBltMode(hdcMem, COLORONCOLOR);
     SetBrushOrgEx(hdcMem, 0, 0, null);
     const ok = StretchBlt(
       hdcMem,

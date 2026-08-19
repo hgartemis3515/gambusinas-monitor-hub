@@ -9,18 +9,26 @@ import { listMonitors } from './monitors.js';
 import { listWindows } from './windows.js';
 import { moveWindowToMonitor, setWindowMode } from './windowManager.js';
 import { listLayouts, saveLayout, deleteLayout } from './layoutStore.js';
-import { readInbox, importFromFile } from './cocinaBridge.js';
+import { readInbox, importFromFile, toPublicInbox } from './cocinaBridge.js';
 import { applyLayout, applyCocinaInbox } from './layoutApply.js';
-import { captureAllMonitors } from './screenCapture.js';
+import { getCachedPreviews, setPreviewOptions, setPreviewsLive } from './screenCapture.js';
 import { readConfig } from './hubSocket.js';
 import { logger } from '../shared/logger.js';
 
 export function registerIpc(): void {
   ipcMain.handle(IpcChannel.MONITORS_LIST, () => listMonitors());
 
-  ipcMain.handle(IpcChannel.MONITORS_PREVIEWS, async () => {
-    const cfg = await readConfig();
-    return captureAllMonitors(cfg.previewScale);
+  ipcMain.handle(IpcChannel.MONITORS_PREVIEWS, () => getCachedPreviews());
+
+  ipcMain.handle(IpcChannel.MONITORS_PREVIEWS_LIVE, async (_e, on: boolean) => {
+    if (on) {
+      const cfg = await readConfig();
+      setPreviewOptions(cfg.previewScale, cfg.previewIntervalMs);
+      setPreviewsLive(true);
+    } else {
+      setPreviewsLive(false);
+    }
+    return true;
   });
 
   ipcMain.handle(IpcChannel.WINDOWS_LIST, (_e, filter: WindowProcessFilter = 'all') =>
@@ -90,13 +98,11 @@ export function registerIpc(): void {
   });
 
   ipcMain.handle(IpcChannel.COCINA_IMPORT, async () => {
-    const data = await readInbox();
-    return data;
+    return toPublicInbox(await readInbox());
   });
 
   ipcMain.handle(IpcChannel.COCINA_IMPORT_FILE, async () => {
-    const data = await importFromFile();
-    return data;
+    return toPublicInbox(await importFromFile());
   });
 }
 

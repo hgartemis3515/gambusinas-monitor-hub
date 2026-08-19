@@ -111,8 +111,8 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
               </tr>
             </thead>
             <tbody>
-              {slots.map((s) => (
-                <tr key={s.monitorIndex}>
+              {slots.map((s, i) => (
+                <tr key={`${s.monitorIndex}-${s.cocineroId || i}`}>
                   <td>M{s.monitorIndex}</td>
                   <td>{s.cocineroNombre || s.label || s.cocineroId || '—'}</td>
                   <td>{perfilLabel(s)}</td>

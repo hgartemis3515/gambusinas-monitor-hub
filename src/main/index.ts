@@ -4,7 +4,6 @@ import electronUpdater from 'electron-updater';
 import { registerIpc } from './ipc.js';
 import { startCocinaServer } from './cocinaServer.js';
 import { startHubSocket, onStatus, readConfig, saveConfig, getStatus } from './hubSocket.js';
-import { captureAllMonitors } from './screenCapture.js';
 import { isWin } from './native/win32.js';
 import { logger, getLogFilePath } from '../shared/logger.js';
 import { IpcChannel } from '../shared/ipc-channels.js';
@@ -156,7 +155,6 @@ app.whenReady().then(() => {
   void startHubSocket();
   setupAutoUpdater();
   createWindow();
-  void readConfig().then((cfg) => captureAllMonitors(cfg.previewScale));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

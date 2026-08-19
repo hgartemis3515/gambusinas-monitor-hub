@@ -72,9 +72,9 @@ export function SettingsPanel({ onConfigChange }: Props): React.ReactElement {
         <label>Actualización (ms)</label>
         <input
           type="number"
-          min={200}
-          max={2000}
-          step={50}
+          min={1000}
+          max={5000}
+          step={100}
           value={cfg.previewIntervalMs}
           disabled={saving}
           onChange={(e) => {
@@ -84,7 +84,7 @@ export function SettingsPanel({ onConfigChange }: Props): React.ReactElement {
           onBlur={() => void patch({ previewIntervalMs: cfg.previewIntervalMs })}
         />
       </div>
-      <p className="muted">Más grande = se ven mejor las pantallas. Intervalo menor = más “en vivo” (más CPU).</p>
+      <p className="muted">Más grande = se ven mejor las pantallas. Intervalo menor = más “en vivo” (más CPU). Mínimo 1000 ms para que Windows no marque la app como “no responde”.</p>
 
       <h2 style={{ marginTop: 22 }}>Desplegar</h2>
       <label className="kiosk-label">

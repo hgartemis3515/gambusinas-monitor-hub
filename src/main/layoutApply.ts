@@ -1,14 +1,17 @@
-import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { spawn, execFile } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { app, shell } from 'electron';
-import type { LayoutProfile, LayoutSlot, WindowInfo, WindowMode } from '../shared/types.js';
+import type { CocinaLayoutImport, LayoutProfile, LayoutSlot, WindowInfo, WindowMode } from '../shared/types.js';
 import { listMonitors } from './monitors.js';
 import { listWindows } from './windows.js';
 import { moveWindowToMonitor } from './windowManager.js';
 import { isWin } from './native/win32.js';
 import { readInbox, validateSlots } from './cocinaBridge.js';
 import { logger } from '../shared/logger.js';
+
+const execFileAsync = promisify(execFile);
 
 function findChromePath(): string | null {
   if (!isWin) return null;
@@ -74,21 +77,100 @@ async function placeNewBrowserWindow(
   return false;
 }
 
+function redactUrl(url: string): string {
+  const i = url.indexOf('#hubAuth=');
+  return i >= 0 ? `${url.slice(0, i)}#hubAuth=***` : url;
+}
+
+function withHubAuth(url: string, authBundle?: string): string {
+  if (!url || url.includes('#hubAuth=')) return url;
+  if (!authBundle) return url;
+  const hash = Buffer.from(authBundle, 'utf8').toString('base64url');
+  return `${url}#hubAuth=${hash}`;
+}
+
+function kioskUserDataDir(monitorIndex: number): string {
+  return join(app.getPath('userData'), 'chrome-kiosk', `M${monitorIndex}`);
+}
+
+function mergeJsonFile(path: string, patch: Record<string, unknown>): void {
+  let current: Record<string, unknown> = {};
+  if (existsSync(path)) {
+    try {
+      current = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+    } catch {
+      current = {};
+    }
+  }
+  writeFileSync(path, JSON.stringify({ ...current, ...patch }));
+}
+
+/** Preferencias Chrome: apagar Translate y fijar locale es (perfil kiosk fresco). */
+function prepareKioskProfile(userDataDir: string): void {
+  try {
+    if (existsSync(join(userDataDir, 'lockfile')) || existsSync(join(userDataDir, 'SingletonLock'))) {
+      return;
+    }
+    mkdirSync(join(userDataDir, 'Default'), { recursive: true });
+    mergeJsonFile(join(userDataDir, 'Default', 'Preferences'), {
+      translate: { enabled: false },
+      translate_blocked_languages: ['en', 'es'],
+      intl: { accept_languages: 'es-419,es' },
+      browser: {
+        check_default_browser: false,
+        has_seen_welcome_page: true,
+        enable_spellchecking: false,
+      },
+    });
+    mergeJsonFile(join(userDataDir, 'Local State'), {
+      intl: { app_locale: 'es', selected_languages: { translate_blocked_languages: ['en', 'es'] } },
+    });
+  } catch (err) {
+    logger.warn('prepareKioskProfile: no se pudieron escribir prefs', {
+      message: (err as Error).message,
+    });
+  }
+}
+
+/** Cierra solo Chrome/Edge lanzados por el Hub (`--user-data-dir=...chrome-kiosk`). */
+async function killKioskBrowsers(): Promise<void> {
+  if (!isWin) return;
+  try {
+    await execFileAsync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-WindowStyle',
+        'Hidden',
+        '-Command',
+        "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and $_.CommandLine -like '*chrome-kiosk*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+      ],
+      { timeout: 8000, windowsHide: true },
+    );
+    await sleep(500);
+  } catch {
+    /* best-effort: si no se pueden cerrar, el spawn igual abre la URL */
+  }
+}
+
 function buildSpawnArgs(
   slot: LayoutSlot,
   bounds: { x: number; y: number; width: number; height: number },
   kiosk: boolean,
 ): string[] {
   const quietFlags = [
-    '--disable-features=TranslateUI,Translate',
+    '--disable-features=Translate,TranslateUI,LanguageDetection,TFLiteLanguageDetection',
+    '--disable-translate',
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-session-crashed-bubble',
     '--hide-crash-restore-bubble',
-    '--lang=es',
+    '--disable-infobars',
+    '--lang=es-419',
     '--accept-lang=es-419,es',
   ];
-  const userData = join(app.getPath('userData'), 'chrome-kiosk', `M${slot.monitorIndex}`);
+  const userData = kioskUserDataDir(slot.monitorIndex);
+  prepareKioskProfile(userData);
   const pos = [`--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`];
   if (slot.mode === 'fullscreen' && kiosk) {
     return [
@@ -164,7 +246,7 @@ export async function applyLayout(
     opened++;
     logger.info('applyLayout: abierto navegador', {
       slot: slot.monitorIndex,
-      url: slot.url,
+      url: redactUrl(slot.url),
       kiosk,
     });
     // Kiosk ya es pantalla completa: no enviar F11 (lo apagaría). Mover al monitor.
@@ -178,6 +260,13 @@ export async function applyLayout(
   return { applied, opened, errors };
 }
 
+function injectAuthIntoSlots(data: CocinaLayoutImport): LayoutSlot[] {
+  const slots = validateSlots(data.slots) ?? [];
+  return slots.map((s) =>
+    s.url ? { ...s, url: withHubAuth(s.url, data.authBundle) } : s,
+  );
+}
+
 export async function applyCocinaInbox(
   opts?: { kiosk?: boolean },
 ): Promise<{ applied: number; opened: number; errors: string[] }> {
@@ -187,12 +276,13 @@ export async function applyCocinaInbox(
       'No hay layout de Cocina en el inbox. Envía desde la App Cocina ("Enviar al Monitor Hub" o Aplicar).',
     );
   }
+  await killKioskBrowsers();
   const profile: LayoutProfile = {
     id: `cocina-${Date.now()}`,
     name: data.profileName || `Cocina ${new Date().toLocaleString()}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    slots: validateSlots(data.slots) ?? [],
+    slots: injectAuthIntoSlots(data),
   };
   return applyLayout(profile, { kiosk: opts?.kiosk !== false });
 }

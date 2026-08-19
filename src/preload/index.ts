@@ -15,6 +15,7 @@ import type {
 export interface HubApi {
   listMonitors: () => Promise<MonitorInfo[]>;
   listMonitorPreviews: () => Promise<MonitorPreview[]>;
+  setPreviewsLive: (on: boolean) => Promise<boolean>;
   identifyMonitors: () => Promise<boolean>;
   listWindows: (filter?: WindowProcessFilter) => Promise<WindowInfo[]>;
   listThumbnails: () => Promise<WindowInfo[]>;
@@ -44,6 +45,7 @@ try {
   const api: HubApi = {
     listMonitors: () => ipcRenderer.invoke(IpcChannel.MONITORS_LIST),
     listMonitorPreviews: () => ipcRenderer.invoke(IpcChannel.MONITORS_PREVIEWS),
+    setPreviewsLive: (on: boolean) => ipcRenderer.invoke(IpcChannel.MONITORS_PREVIEWS_LIVE, on),
     identifyMonitors: () => ipcRenderer.invoke(IpcChannel.MONITORS_IDENTIFY),
     listWindows: (filter: WindowProcessFilter = 'all') =>
       ipcRenderer.invoke(IpcChannel.WINDOWS_LIST, filter),

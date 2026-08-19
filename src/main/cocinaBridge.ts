@@ -88,3 +88,16 @@ export function validateSlots(slots: unknown): LayoutSlot[] | null {
       typeof (s as LayoutSlot).mode === 'string',
   );
 }
+
+/** Inbox para el renderer: sin JWT. */
+export function toPublicInbox(data: CocinaLayoutImport | null): CocinaLayoutImport | null {
+  if (!data) return null;
+  const { authBundle: _omit, ...rest } = data;
+  return {
+    ...rest,
+    slots: (rest.slots || []).map((s) => ({
+      ...s,
+      url: s.url ? s.url.replace(/#hubAuth=[^#]*/, '') : s.url,
+    })),
+  };
+}
