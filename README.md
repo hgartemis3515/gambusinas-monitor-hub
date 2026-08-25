@@ -14,9 +14,9 @@ Launcher de escritorio Windows (estilo DisplayFusion) para distribuir ventanas e
 
 ## Descarga
 
-Instalador Windows: https://github.com/hgartemis3515/gambusinas-monitor-hub/releases/tag/v0.1.0
+Instalador (solo la primera vez): https://github.com/hgartemis3515/gambusinas-monitor-hub/releases/latest
 
-Archivo: `GambusinasMonitorHub-Setup-0.1.0.exe` (~83 MB). Requiere Windows 10/11 x64.
+La app instalada se actualiza sola al abrir y cada 15 min (Ajustes → Buscar actualizaciones). No hace falta volver a bajar el Setup.
 
 ## Uso
 

@@ -10,6 +10,7 @@ import type {
   WindowProcessFilter,
   CocinaLayoutImport,
   HubConfig,
+  HubUpdateStatus,
 } from '../shared/types.js';
 
 export interface HubApi {
@@ -39,6 +40,11 @@ export interface HubApi {
   onHubStatus: (cb: (s: string) => void) => void;
   onInboxUpdated: (cb: () => void) => () => void;
   getVersion: () => Promise<string>;
+  getChromeZooms: () => Promise<Record<string, number>>;
+  setChromeZoom: (monitorIndex: number, percent: number) => Promise<{ zoom: number; live: boolean }>;
+  getUpdateStatus: () => Promise<HubUpdateStatus>;
+  checkForUpdates: () => Promise<HubUpdateStatus>;
+  onUpdateStatus: (cb: (s: HubUpdateStatus) => void) => () => void;
 }
 
 try {
@@ -64,6 +70,11 @@ try {
     setHubConfig: (cfg) => ipcRenderer.invoke(IpcChannel.HUB_CONFIG_SET, cfg),
     getHubStatus: () => ipcRenderer.invoke(IpcChannel.HUB_STATUS),
     getVersion: () => ipcRenderer.invoke(IpcChannel.HUB_VERSION),
+    getChromeZooms: () => ipcRenderer.invoke(IpcChannel.HUB_ZOOM_GET),
+    setChromeZoom: (monitorIndex, percent) =>
+      ipcRenderer.invoke(IpcChannel.HUB_ZOOM_SET, monitorIndex, percent),
+    getUpdateStatus: () => ipcRenderer.invoke(IpcChannel.HUB_UPDATER_STATUS),
+    checkForUpdates: () => ipcRenderer.invoke(IpcChannel.HUB_UPDATER_CHECK),
     onHubStatus: (cb) => {
       const handler = (_e: unknown, s: string) => cb(s);
       ipcRenderer.on('hub:status-changed', handler);
@@ -73,6 +84,13 @@ try {
       ipcRenderer.on('hub:inbox-updated', handler);
       return () => {
         ipcRenderer.removeListener('hub:inbox-updated', handler);
+      };
+    },
+    onUpdateStatus: (cb) => {
+      const handler = (_e: unknown, s: HubUpdateStatus) => cb(s);
+      ipcRenderer.on('hub:update-status', handler);
+      return () => {
+        ipcRenderer.removeListener('hub:update-status', handler);
       };
     },
   };

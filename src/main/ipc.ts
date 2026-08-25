@@ -14,6 +14,7 @@ import { applyLayout, applyCocinaInbox } from './layoutApply.js';
 import { getCachedPreviews, setPreviewOptions, setPreviewsLive } from './screenCapture.js';
 import { readConfig } from './hubSocket.js';
 import { logger } from '../shared/logger.js';
+import { readChromeZooms, setAndApplyChromeZoom } from './chromeZoom.js';
 
 export function registerIpc(): void {
   ipcMain.handle(IpcChannel.MONITORS_LIST, () => listMonitors());
@@ -103,6 +104,12 @@ export function registerIpc(): void {
 
   ipcMain.handle(IpcChannel.COCINA_IMPORT_FILE, async () => {
     return toPublicInbox(await importFromFile());
+  });
+
+  ipcMain.handle(IpcChannel.HUB_ZOOM_GET, () => readChromeZooms());
+
+  ipcMain.handle(IpcChannel.HUB_ZOOM_SET, async (_e, monitorIndex: number, percent: number) => {
+    return setAndApplyChromeZoom(monitorIndex, percent);
   });
 }
 

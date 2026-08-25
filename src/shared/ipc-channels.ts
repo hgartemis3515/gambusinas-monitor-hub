@@ -16,6 +16,10 @@ export const IpcChannel = {
   HUB_VERSION: 'hub:version',
   HUB_CONFIG_GET: 'hub:config:get',
   HUB_CONFIG_SET: 'hub:config:set',
+  HUB_ZOOM_GET: 'hub:zoom:get',
+  HUB_ZOOM_SET: 'hub:zoom:set',
+  HUB_UPDATER_STATUS: 'hub:updater:status',
+  HUB_UPDATER_CHECK: 'hub:updater:check',
   COCINA_IMPORT: 'cocina:import',
   COCINA_IMPORT_FILE: 'cocina:importFile',
 } as const;

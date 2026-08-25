@@ -1,6 +1,5 @@
 import { app, BrowserWindow, screen, Menu, shell } from 'electron';
 import { join } from 'node:path';
-import electronUpdater from 'electron-updater';
 import { registerIpc } from './ipc.js';
 import { startCocinaServer } from './cocinaServer.js';
 import { startHubSocket, onStatus, readConfig, saveConfig, getStatus } from './hubSocket.js';
@@ -9,10 +8,7 @@ import { logger, getLogFilePath } from '../shared/logger.js';
 import { IpcChannel } from '../shared/ipc-channels.js';
 import type { HubConfig } from '../shared/types.js';
 import { ipcMain } from 'electron';
-
-// electron-updater es CommonJS; con "type":"module" el main corre como ESM,
-// asi que usamos el default import y desestructuramos.
-const { autoUpdater } = electronUpdater as typeof import('electron-updater');
+import { checkForHubUpdates, getUpdateStatus, setupAutoUpdater } from './autoUpdate.js';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -95,8 +91,7 @@ function buildMenu(): Menu {
         {
           label: 'Buscar actualizaciones',
           click: () => {
-            if (app.isPackaged) void autoUpdater.checkForUpdatesAndNotify();
-            else logger.info('autoUpdater: ignorado en dev');
+            void checkForHubUpdates();
           },
         },
       ],
@@ -117,30 +112,13 @@ function registerHubIpc(): void {
   ipcMain.handle(IpcChannel.HUB_CONFIG_SET, (_e, cfg: Partial<HubConfig>) => saveConfig(cfg));
   ipcMain.handle(IpcChannel.HUB_STATUS, () => getStatus());
   ipcMain.handle(IpcChannel.HUB_VERSION, () => app.getVersion());
+  ipcMain.handle(IpcChannel.HUB_UPDATER_STATUS, () => getUpdateStatus());
+  ipcMain.handle(IpcChannel.HUB_UPDATER_CHECK, () => checkForHubUpdates());
   onStatus((s) => {
     for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.send('hub:status-changed', s);
     }
   });
-}
-
-// Auto-update: al abrir el Hub, busca actualizaciones; si hay, descarga e
-// instala silenciosamente y reinicia la app. Solo en app empaquetada (no dev).
-function setupAutoUpdater(): void {
-  if (!app.isPackaged) return;
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('update-available', (info) => {
-    logger.info('autoUpdater: actualizacion disponible', { version: info.version });
-  });
-  autoUpdater.on('update-downloaded', (info) => {
-    logger.info('autoUpdater: actualizacion descargada, instalando', { version: info.version });
-    autoUpdater.quitAndInstall();
-  });
-  autoUpdater.on('error', (err) => {
-    logger.warn('autoUpdater: error', { message: err.message });
-  });
-  void autoUpdater.checkForUpdatesAndNotify();
 }
 
 app.whenReady().then(() => {

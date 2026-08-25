@@ -10,6 +10,12 @@ import { moveWindowToMonitor } from './windowManager.js';
 import { isWin } from './native/win32.js';
 import { readInbox, validateSlots } from './cocinaBridge.js';
 import { logger } from '../shared/logger.js';
+import {
+  applyChromeZoomLive,
+  debugPortForMonitor,
+  getChromeZoom,
+  withHubZoom,
+} from './chromeZoom.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -153,10 +159,19 @@ async function killKioskBrowsers(): Promise<void> {
   }
 }
 
+function debugFlags(monitorIndex: number): string[] {
+  return [
+    `--remote-debugging-port=${debugPortForMonitor(monitorIndex)}`,
+    '--remote-debugging-address=127.0.0.1',
+    '--remote-allow-origins=*',
+  ];
+}
+
 function buildSpawnArgs(
   slot: LayoutSlot,
   bounds: { x: number; y: number; width: number; height: number },
   kiosk: boolean,
+  url: string,
 ): string[] {
   const quietFlags = [
     '--disable-features=Translate,TranslateUI,LanguageDetection,TFLiteLanguageDetection',
@@ -168,6 +183,7 @@ function buildSpawnArgs(
     '--disable-infobars',
     '--lang=es-419',
     '--accept-lang=es-419,es',
+    ...debugFlags(slot.monitorIndex),
   ];
   const userData = kioskUserDataDir(slot.monitorIndex);
   prepareKioskProfile(userData);
@@ -180,7 +196,7 @@ function buildSpawnArgs(
       '--new-window',
       ...quietFlags,
       ...pos,
-      slot.url!,
+      url,
     ];
   }
   if (slot.mode === 'fullscreen') {
@@ -190,7 +206,7 @@ function buildSpawnArgs(
       ...quietFlags,
       '--start-fullscreen',
       ...pos,
-      slot.url!,
+      url,
     ];
   }
   return [
@@ -198,7 +214,7 @@ function buildSpawnArgs(
     '--new-window',
     ...quietFlags,
     ...pos,
-    slot.url!,
+    url,
   ];
 }
 
@@ -225,6 +241,8 @@ export async function applyLayout(
       try {
         moveWindowToMonitor(target.hwnd, slot.monitorIndex, slot.mode);
         applied++;
+        const zoom = await getChromeZoom(slot.monitorIndex);
+        void applyChromeZoomLive(slot.monitorIndex, zoom);
       } catch (err) {
         errors.push(`Mover hwnd ${target.hwnd}: ${(err as Error).message}`);
       }
@@ -241,13 +259,16 @@ export async function applyLayout(
       continue;
     }
     const before = currentBrowserHwnds();
-    const args = buildSpawnArgs(slot, monitor.bounds, kiosk);
+    const zoom = await getChromeZoom(slot.monitorIndex);
+    const url = withHubZoom(slot.url, zoom);
+    const args = buildSpawnArgs(slot, monitor.bounds, kiosk, url);
     spawn(chromePath, args, { detached: true, stdio: 'ignore' }).unref();
     opened++;
     logger.info('applyLayout: abierto navegador', {
       slot: slot.monitorIndex,
-      url: redactUrl(slot.url),
+      url: redactUrl(url),
       kiosk,
+      zoom,
     });
     // Kiosk ya es pantalla completa: no enviar F11 (lo apagaría). Mover al monitor.
     const placeMode: WindowMode = kiosk && slot.mode === 'fullscreen' ? 'maximized' : slot.mode;
@@ -255,6 +276,7 @@ export async function applyLayout(
     if (!placed) {
       errors.push(`M${slot.monitorIndex}: ventana abierta pero no se pudo posicionar a tiempo`);
     }
+    void sleep(1800).then(() => applyChromeZoomLive(slot.monitorIndex, zoom));
   }
   logger.info('applyLayout: fin', { profile: profile.name, applied, opened, errors: errors.length });
   return { applied, opened, errors };

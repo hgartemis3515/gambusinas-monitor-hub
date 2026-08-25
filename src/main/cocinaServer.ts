@@ -2,13 +2,19 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { CocinaLayoutImport, LayoutSlot } from '../shared/types.js';
 import { logger } from '../shared/logger.js';
 import { writeInbox } from './cocinaBridge.js';
+import {
+  clampChromeZoom,
+  getChromeZoom,
+  readChromeZooms,
+  setAndApplyChromeZoom,
+} from './chromeZoom.js';
 
 const PORT = 7331;
 const HOST = '0.0.0.0';
 
 function setCors(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
@@ -39,6 +45,14 @@ function isValidImport(data: unknown): data is CocinaLayoutImport {
   return Array.isArray(d['slots']);
 }
 
+function pathnameOf(req: IncomingMessage): string {
+  try {
+    return new URL(req.url || '/', 'http://127.0.0.1').pathname;
+  } catch {
+    return req.url || '/';
+  }
+}
+
 export function startCocinaServer(): void {
   const server = createServer(async (req, res) => {
     setCors(res);
@@ -47,23 +61,48 @@ export function startCocinaServer(): void {
       res.end();
       return;
     }
-    if (req.method !== 'POST' || req.url !== '/import') {
-      send(res, 404, { error: 'Not found' });
-      return;
-    }
+    const path = pathnameOf(req);
     try {
-      const raw = await readBody(req);
-      const parsed = JSON.parse(raw) as unknown;
-      if (!isValidImport(parsed)) {
-        send(res, 400, { error: 'Payload invalido: se espera { source, profileName?, slots: [] }' });
+      if (req.method === 'GET' && path === '/state') {
+        send(res, 200, { ok: true, zooms: await readChromeZooms() });
         return;
       }
-      const file = await writeInbox(parsed);
-      logger.info('cocinaServer: import recibido', {
-        slots: (parsed.slots as LayoutSlot[]).length,
-        file,
-      });
-      send(res, 200, { ok: true, file, slots: parsed.slots.length });
+      if (req.method === 'GET' && path.startsWith('/zoom/')) {
+        const n = Number(path.slice('/zoom/'.length));
+        if (!Number.isInteger(n) || n < 1 || n > 32) {
+          send(res, 400, { error: 'monitorIndex invalido' });
+          return;
+        }
+        send(res, 200, { ok: true, monitorIndex: n, zoom: await getChromeZoom(n) });
+        return;
+      }
+      if (req.method === 'POST' && path === '/zoom') {
+        const parsed = JSON.parse(await readBody(req)) as Record<string, unknown>;
+        const n = Number(parsed['monitorIndex']);
+        if (!Number.isInteger(n) || n < 1 || n > 32) {
+          send(res, 400, { error: 'monitorIndex invalido' });
+          return;
+        }
+        const result = await setAndApplyChromeZoom(n, clampChromeZoom(parsed['zoom']));
+        send(res, 200, { ok: true, monitorIndex: n, ...result });
+        return;
+      }
+      if (req.method === 'POST' && path === '/import') {
+        const raw = await readBody(req);
+        const parsed = JSON.parse(raw) as unknown;
+        if (!isValidImport(parsed)) {
+          send(res, 400, { error: 'Payload invalido: se espera { source, profileName?, slots: [] }' });
+          return;
+        }
+        const file = await writeInbox(parsed);
+        logger.info('cocinaServer: import recibido', {
+          slots: (parsed.slots as LayoutSlot[]).length,
+          file,
+        });
+        send(res, 200, { ok: true, file, slots: parsed.slots.length });
+        return;
+      }
+      send(res, 404, { error: 'Not found' });
     } catch (err) {
       logger.error('cocinaServer: error', { err });
       send(res, 500, { error: (err as Error).message });
@@ -71,7 +110,7 @@ export function startCocinaServer(): void {
   });
 
   server.listen(PORT, HOST, () => {
-    logger.info(`cocinaServer escuchando en http://${HOST}:${PORT}/import`);
+    logger.info(`cocinaServer escuchando en http://${HOST}:${PORT}`);
   });
   server.on('error', (err) => {
     logger.warn('cocinaServer no pudo arrancar', { err: err.message });

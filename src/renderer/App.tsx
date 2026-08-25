@@ -37,6 +37,8 @@ export function App(): React.ReactElement {
   const [version, setVersion] = React.useState('');
   const [cfg, setCfg] = React.useState<HubConfig>(DEFAULT_CFG);
   const [inboxCount, setInboxCount] = React.useState(0);
+  const [zooms, setZooms] = React.useState<Record<string, number>>({});
+  const zoomTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   function getHub(): HubApi | null {
     const w = window as unknown as { hub?: HubApi };
@@ -153,6 +155,7 @@ export function App(): React.ReactElement {
     hub.onHubStatus(setStatus);
     void hub.getHubConfig().then(setCfg).catch(() => undefined);
     void hub.importFromCocina().then((d) => setInboxCount(d?.slots?.length ?? 0)).catch(() => undefined);
+    void hub.getChromeZooms?.().then(setZooms).catch(() => undefined);
     return hub.onInboxUpdated(() => {
       void hub.importFromCocina().then((d) => setInboxCount(d?.slots?.length ?? 0)).catch(() => undefined);
     });
@@ -195,6 +198,15 @@ export function App(): React.ReactElement {
     } catch (e) {
       setError('Identificar: ' + (e as Error).message);
     }
+  }
+
+  function handleChromeZoom(monitorIndex: number, percent: number): void {
+    setZooms((prev) => ({ ...prev, [String(monitorIndex)]: percent }));
+    const prevTimer = zoomTimers.current[monitorIndex];
+    if (prevTimer) clearTimeout(prevTimer);
+    zoomTimers.current[monitorIndex] = setTimeout(() => {
+      void getHub()?.setChromeZoom(monitorIndex, percent);
+    }, 80);
   }
 
   const windowByMonitor = new Map<number, WindowInfo>();
@@ -246,6 +258,8 @@ export function App(): React.ReactElement {
                     previewScale={cfg.previewScale}
                     onIdentify={handleIdentify}
                     onSetMode={handleSetMode}
+                    chromeZoom={zooms[String(m.index)] ?? 100}
+                    onChromeZoom={(z) => handleChromeZoom(m.index, z)}
                   />
                 ))}
               </div>

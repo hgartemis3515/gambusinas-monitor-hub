@@ -53,6 +53,17 @@ export interface HubConfig {
   autoDeployOnReceive: boolean;
 }
 
+export type HubUpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error' | 'dev';
+
+export interface HubUpdateStatus {
+  state: HubUpdateState;
+  currentVersion: string;
+  availableVersion?: string;
+  message?: string;
+  lastCheckAt?: string;
+  packaged: boolean;
+}
+
 export interface MonitorPreview {
   monitorIndex: number;
   dataUrl?: string;

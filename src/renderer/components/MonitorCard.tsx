@@ -1,13 +1,16 @@
 import React from 'react';
 import type { MonitorInfo, PreviewScale, WindowInfo, WindowMode } from '@shared/types';
+import { ChromeZoomSlider } from './ChromeZoomSlider';
 
 interface Props {
   monitor: MonitorInfo;
   windowOnMonitor: WindowInfo | undefined;
   preview?: string;
   previewScale: PreviewScale;
+  chromeZoom: number;
   onIdentify: () => void;
   onSetMode: (hwnd: number, mode: WindowMode) => void;
+  onChromeZoom: (zoom: number) => void;
 }
 
 export function MonitorCard({
@@ -15,8 +18,10 @@ export function MonitorCard({
   windowOnMonitor,
   preview,
   previewScale,
+  chromeZoom,
   onIdentify,
   onSetMode,
+  onChromeZoom,
 }: Props): React.ReactElement {
   const transmitting = Boolean(windowOnMonitor);
   const src = preview || windowOnMonitor?.thumbnail;
@@ -66,6 +71,7 @@ export function MonitorCard({
           )}
         </div>
       </div>
+      <ChromeZoomSlider value={chromeZoom} onChange={onChromeZoom} />
       <div className="row">
         <button onClick={onIdentify}>Identificar</button>
       </div>

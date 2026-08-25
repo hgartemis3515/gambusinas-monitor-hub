@@ -194,3 +194,10 @@ select, input {
 }
 .settings-row label { min-width: 180px; font-size: 13px; color: #cbd5e1; }
 .hub-status { margin-left: 0; margin-bottom: 10px; flex-wrap: wrap; }
+.zoom-row {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: #cbd5e1;
+}
+.zoom-row label { flex: 0 0 auto; color: #94a3b8; }
+.zoom-row input[type="range"] { flex: 1; min-width: 80px; accent-color: #2563eb; }
+.zoom-row .zoom-val { width: 42px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.slots-table .zoom-row { margin-top: 0; }

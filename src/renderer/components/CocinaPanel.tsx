@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CocinaLayoutImport, LayoutSlot } from '@shared/types';
 import type { HubApi } from '../../preload/index';
+import { ChromeZoomSlider } from './ChromeZoomSlider';
 
 interface Props {
   onRefresh: () => void;
@@ -19,6 +20,8 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
   const [fullscreen, setFullscreen] = React.useState(true);
+  const [zooms, setZooms] = React.useState<Record<string, number>>({});
+  const zoomTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   function getHub(): HubApi | null {
     return (window as unknown as { hub?: HubApi }).hub ?? null;
@@ -32,6 +35,8 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
       setInbox(data);
       const cfg = await hub.getHubConfig();
       setFullscreen(cfg.fullscreenOnDeploy !== false);
+      const z = await hub.getChromeZooms();
+      setZooms(z);
     } catch (e) {
       onError('Inbox: ' + (e as Error).message);
     }
@@ -51,6 +56,15 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
     const hub = getHub();
     if (!hub) return;
     await hub.setHubConfig({ fullscreenOnDeploy: v });
+  }
+
+  function handleZoom(monitorIndex: number, percent: number): void {
+    setZooms((prev) => ({ ...prev, [String(monitorIndex)]: percent }));
+    const prevTimer = zoomTimers.current[monitorIndex];
+    if (prevTimer) clearTimeout(prevTimer);
+    zoomTimers.current[monitorIndex] = setTimeout(() => {
+      void getHub()?.setChromeZoom(monitorIndex, percent);
+    }, 80);
   }
 
   async function desplegar(): Promise<void> {
@@ -108,6 +122,7 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
                 <th>Cocinero</th>
                 <th>Perfil</th>
                 <th>Guarniciones</th>
+                <th>Zoom Chrome</th>
               </tr>
             </thead>
             <tbody>
@@ -117,6 +132,12 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
                   <td>{s.cocineroNombre || s.label || s.cocineroId || '—'}</td>
                   <td>{perfilLabel(s)}</td>
                   <td>{s.listaGuarniciones ? 'Sí' : '—'}</td>
+                  <td>
+                    <ChromeZoomSlider
+                      value={zooms[String(s.monitorIndex)] ?? 100}
+                      onChange={(z) => handleZoom(s.monitorIndex, z)}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

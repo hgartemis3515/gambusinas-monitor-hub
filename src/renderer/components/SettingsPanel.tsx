@@ -1,5 +1,5 @@
 import React from 'react';
-import type { HubConfig, PreviewScale } from '@shared/types';
+import type { HubConfig, HubUpdateStatus, PreviewScale } from '@shared/types';
 import type { HubApi } from '../../preload/index';
 import { HubStatus } from './HubStatus';
 
@@ -11,6 +11,8 @@ export function SettingsPanel({ onConfigChange }: Props): React.ReactElement {
   const [cfg, setCfg] = React.useState<HubConfig | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
+  const [upd, setUpd] = React.useState<HubUpdateStatus | null>(null);
+  const [checking, setChecking] = React.useState(false);
 
   function getHub(): HubApi | null {
     return (window as unknown as { hub?: HubApi }).hub ?? null;
@@ -23,6 +25,8 @@ export function SettingsPanel({ onConfigChange }: Props): React.ReactElement {
       setCfg(c);
       onConfigChange(c);
     });
+    void hub.getUpdateStatus?.().then(setUpd).catch(() => undefined);
+    return hub.onUpdateStatus?.(setUpd);
   }, [onConfigChange]);
 
   async function patch(partial: Partial<HubConfig>): Promise<void> {
@@ -106,6 +110,29 @@ export function SettingsPanel({ onConfigChange }: Props): React.ReactElement {
         Desplegar automáticamente al recibir de App Cocina
       </label>
       {msg && <div className="muted" style={{ marginTop: 10 }}>{msg}</div>}
+
+      <h2 style={{ marginTop: 22 }}>Actualizaciones</h2>
+      <p className="muted">
+        Con la app instalada, el Hub se actualiza solo desde GitHub (sin descargar el Setup a mano).
+        Comprueba al abrir y cada 15 minutos.
+      </p>
+      <div className="muted" style={{ margin: '8px 0' }}>
+        Versión actual: <strong>v{upd?.currentVersion || '—'}</strong>
+        {upd?.availableVersion ? ` · nueva: v${upd.availableVersion}` : ''}
+        <br />
+        {upd?.message || (upd?.packaged === false ? 'Modo desarrollo: el auto-update solo corre en el instalador.' : '')}
+      </div>
+      <button
+        disabled={checking}
+        onClick={() => {
+          const hub = getHub();
+          if (!hub?.checkForUpdates) return;
+          setChecking(true);
+          void hub.checkForUpdates().then(setUpd).finally(() => setChecking(false));
+        }}
+      >
+        {checking ? 'Buscando…' : 'Buscar actualizaciones ahora'}
+      </button>
     </div>
   );
 }
