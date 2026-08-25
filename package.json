@@ -14,6 +14,10 @@
     "build:installer": "electron-vite build && electron-builder --win nsis",
     "release": "electron-vite build && electron-builder --win nsis --publish always"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hgartemis3515/gambusinas-monitor-hub.git"
+  },
   "engines": {
     "node": ">=20"
   },

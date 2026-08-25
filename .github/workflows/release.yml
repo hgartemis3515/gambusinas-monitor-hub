@@ -11,16 +11,54 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: cmd
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - name: Build and publish
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Build Electron
+        run: npm run build
+      - name: Package NSIS
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run release
+        run: npx --no-install electron-builder --win nsis --publish never
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path release -Filter "GambusinasMonitorHub-Setup-*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw "electron-builder no genero el instalador en release/" }
+          if ($exe.Length -lt 10MB) { throw "Instalador demasiado pequeno: $($exe.Length)" }
+          Get-ChildItem release | Format-Table Name, Length
+          if (-not (Test-Path "release\latest.yml")) {
+            $sha = [Convert]::ToBase64String([Security.Cryptography.SHA512]::Create().ComputeHash([IO.File]::ReadAllBytes($exe.FullName)))
+            $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+            $date = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            $yml = "version: $v`nfiles:`n  - url: $($exe.Name)`n    sha512: $sha`n    size: $($exe.Length)`npath: $($exe.Name)`nsha512: $sha`nreleaseDate: '$date'`n"
+            [IO.File]::WriteAllText((Join-Path (Get-Location) "release\latest.yml"), $yml)
+          }
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: v${{ steps.ver.outputs.version }}
+          body: |
+            Zoom Chrome desde el Hub (en vivo) y auto-update sin reinstalar el Setup.
+          files: |
+            release/GambusinasMonitorHub-Setup-*.exe
+            release/GambusinasMonitorHub-Setup-*.exe.blockmap
+            release/latest.yml
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
