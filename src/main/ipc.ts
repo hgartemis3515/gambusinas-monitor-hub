@@ -94,9 +94,12 @@ export function registerIpc(): void {
     return applyLayout(profile, opts);
   });
 
-  ipcMain.handle(IpcChannel.LAYOUTS_APPLY_COCINA, async (_e, opts?: { kiosk?: boolean }) => {
-    return applyCocinaInbox(opts);
-  });
+  ipcMain.handle(
+    IpcChannel.LAYOUTS_APPLY_COCINA,
+    async (_e, opts?: { kiosk?: boolean; monitorIndex?: number }) => {
+      return applyCocinaInbox(opts);
+    },
+  );
 
   ipcMain.handle(IpcChannel.COCINA_IMPORT, async () => {
     return toPublicInbox(await readInbox());

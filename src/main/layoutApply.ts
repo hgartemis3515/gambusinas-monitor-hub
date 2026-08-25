@@ -138,8 +138,7 @@ function prepareKioskProfile(userDataDir: string): void {
   }
 }
 
-/** Cierra solo Chrome/Edge lanzados por el Hub (`--user-data-dir=...chrome-kiosk`). */
-async function killKioskBrowsers(): Promise<void> {
+async function killKioskByCommandLine(likePattern: string): Promise<void> {
   if (!isWin) return;
   try {
     await execFileAsync(
@@ -149,13 +148,41 @@ async function killKioskBrowsers(): Promise<void> {
         '-WindowStyle',
         'Hidden',
         '-Command',
-        "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and $_.CommandLine -like '*chrome-kiosk*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+        `Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and $_.CommandLine -like '${likePattern}' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
       ],
       { timeout: 8000, windowsHide: true },
     );
     await sleep(500);
   } catch {
     /* best-effort: si no se pueden cerrar, el spawn igual abre la URL */
+  }
+}
+
+/** Cierra solo Chrome/Edge lanzados por el Hub (`--user-data-dir=...chrome-kiosk`). */
+async function killKioskBrowsers(): Promise<void> {
+  await killKioskByCommandLine('*chrome-kiosk*');
+}
+
+/** Cierra el kiosk de un monitor (M3 no mata M30). */
+async function killKioskBrowserForMonitor(monitorIndex: number): Promise<void> {
+  const n = Number(monitorIndex);
+  if (!Number.isInteger(n) || n < 1) return;
+  if (!isWin) return;
+  try {
+    await execFileAsync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-WindowStyle',
+        'Hidden',
+        '-Command',
+        `Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and $_.CommandLine -match 'chrome-kiosk[\\\\/]M${n}(?:[\\\\/\"\\s]|$)' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+      ],
+      { timeout: 8000, windowsHide: true },
+    );
+    await sleep(500);
+  } catch {
+    /* best-effort */
   }
 }
 
@@ -290,7 +317,7 @@ function injectAuthIntoSlots(data: CocinaLayoutImport): LayoutSlot[] {
 }
 
 export async function applyCocinaInbox(
-  opts?: { kiosk?: boolean },
+  opts?: { kiosk?: boolean; monitorIndex?: number },
 ): Promise<{ applied: number; opened: number; errors: string[] }> {
   const data = await readInbox();
   if (!data || !data.slots?.length) {
@@ -298,13 +325,24 @@ export async function applyCocinaInbox(
       'No hay layout de Cocina en el inbox. Envía desde la App Cocina ("Enviar al Monitor Hub" o Aplicar).',
     );
   }
-  await killKioskBrowsers();
+  let slots = injectAuthIntoSlots(data);
+  const only = Number(opts?.monitorIndex);
+  const single = Number.isInteger(only) && only >= 1;
+  if (single) {
+    slots = slots.filter((s) => Number(s.monitorIndex) === only);
+    if (!slots.length) {
+      throw new Error(`No hay layout para el monitor ${only}. Envíalo desde App Cocina.`);
+    }
+    await killKioskBrowserForMonitor(only);
+  } else {
+    await killKioskBrowsers();
+  }
   const profile: LayoutProfile = {
     id: `cocina-${Date.now()}`,
     name: data.profileName || `Cocina ${new Date().toLocaleString()}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    slots: injectAuthIntoSlots(data),
+    slots,
   };
   return applyLayout(profile, { kiosk: opts?.kiosk !== false });
 }

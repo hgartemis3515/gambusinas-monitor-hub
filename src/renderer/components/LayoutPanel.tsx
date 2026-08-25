@@ -135,7 +135,7 @@ export function LayoutPanel({ monitors, windows, onRefresh }: Props): React.Reac
           onChange={(e) => setName(e.target.value)}
         />
         <button className="primary" disabled={busy} onClick={save}>
-          Guardar actual
+          Guardar perfil de configuración
         </button>
       </div>
 

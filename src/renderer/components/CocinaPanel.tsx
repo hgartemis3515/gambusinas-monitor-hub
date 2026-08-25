@@ -1,5 +1,5 @@
 import React from 'react';
-import type { CocinaLayoutImport, LayoutSlot } from '@shared/types';
+import type { CocinaLayoutImport, LayoutProfile, LayoutSlot } from '@shared/types';
 import type { HubApi } from '../../preload/index';
 import { ChromeZoomSlider } from './ChromeZoomSlider';
 
@@ -22,6 +22,9 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
   const [fullscreen, setFullscreen] = React.useState(true);
   const [zooms, setZooms] = React.useState<Record<string, number>>({});
   const zoomTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const [profileName, setProfileName] = React.useState('');
+  const [profiles, setProfiles] = React.useState<LayoutProfile[]>([]);
+  const [despegando, setDespegando] = React.useState<number | null>(null);
 
   function getHub(): HubApi | null {
     return (window as unknown as { hub?: HubApi }).hub ?? null;
@@ -37,6 +40,7 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
       setFullscreen(cfg.fullscreenOnDeploy !== false);
       const z = await hub.getChromeZooms();
       setZooms(z);
+      setProfiles(await hub.listLayouts());
     } catch (e) {
       onError('Inbox: ' + (e as Error).message);
     }
@@ -67,19 +71,68 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
     }, 80);
   }
 
-  async function desplegar(): Promise<void> {
+  async function desplegar(monitorIndex?: number): Promise<void> {
     const hub = getHub();
     if (!hub) return;
     setBusy(true);
+    if (monitorIndex != null) setDespegando(monitorIndex);
     onError(null);
     setMsg(null);
     try {
-      const res = await hub.applyCocina({ kiosk: fullscreen });
+      const res = await hub.applyCocina({
+        kiosk: fullscreen,
+        ...(monitorIndex != null ? { monitorIndex } : {}),
+      });
       const extra = res.errors.length ? ' · ' + res.errors.join('; ') : '';
-      setMsg(`Desplegadas: ${res.opened} abiertas, ${res.applied} movidas${extra}`);
+      const cual = monitorIndex != null
+        ? `M${monitorIndex}`
+        : `${res.opened} abiertas, ${res.applied} movidas`;
+      setMsg(`Despegado ${cual}${extra}`);
       onRefresh();
     } catch (e) {
       onError('Desplegar: ' + (e as Error).message);
+    } finally {
+      setBusy(false);
+      setDespegando(null);
+    }
+  }
+
+  async function guardarPerfilConfig(): Promise<void> {
+    const hub = getHub();
+    if (!hub) return;
+    const nom = profileName.trim();
+    if (!nom) {
+      setMsg('Dale un nombre al perfil de configuración');
+      return;
+    }
+    if (!slots.length) {
+      setMsg('No hay layout de Cocina para guardar. Envíalo desde App Cocina.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await hub.saveLayout(nom, slots);
+      setProfileName('');
+      setMsg(`Perfil de configuración "${nom}" guardado (${slots.length} monitores)`);
+      setProfiles(await hub.listLayouts());
+    } catch (e) {
+      setMsg('Error al guardar: ' + (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function aplicarPerfilGuardado(id: string): Promise<void> {
+    const hub = getHub();
+    if (!hub) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await hub.applyLayout(id, { kiosk: fullscreen });
+      setMsg(`Perfil aplicado: ${res.applied} movidas, ${res.opened} abiertas`);
+      onRefresh();
+    } catch (e) {
+      onError('Aplicar perfil: ' + (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -101,7 +154,7 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
           Pantalla completa
         </label>
         <button className="primary" disabled={busy || slots.length === 0} onClick={() => void desplegar()}>
-          {busy ? 'Desplegando…' : 'Desplegar ventanas'}
+          {busy && despegando == null ? 'Desplegando…' : 'Desplegar ventanas'}
         </button>
       </div>
 
@@ -123,6 +176,7 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
                 <th>Perfil</th>
                 <th>Guarniciones</th>
                 <th>Zoom Chrome</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -138,10 +192,52 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
                       onChange={(z) => handleZoom(s.monitorIndex, z)}
                     />
                   </td>
+                  <td>
+                    <button
+                      className="primary"
+                      disabled={busy}
+                      title={`Despegar solo el monitor ${s.monitorIndex}`}
+                      onClick={() => void desplegar(s.monitorIndex)}
+                    >
+                      {despegando === s.monitorIndex ? '…' : 'Despegar'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          <h3 style={{ margin: '18px 0 8px', fontSize: 14 }}>Perfil de configuración</h3>
+          <div className="row">
+            <input
+              placeholder="Nombre del perfil (cocineros, URLs, kiosk)"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+            />
+            <button className="primary" disabled={busy} onClick={() => void guardarPerfilConfig()}>
+              Guardar perfil de configuración
+            </button>
+          </div>
+          <div className="win-list" style={{ marginTop: 8 }}>
+            {profiles.length === 0 && (
+              <div className="muted">Sin perfiles guardados. Guarda el layout actual con un nombre.</div>
+            )}
+            {profiles.map((p) => (
+              <div key={p.id} className="win-row" style={{ cursor: 'default' }}>
+                <div className="info">
+                  <div className="title">{p.name}</div>
+                  <div className="sub">
+                    {p.slots.length} monitores · {new Date(p.updatedAt).toLocaleString()}
+                  </div>
+                </div>
+                <div className="actions">
+                  <button className="primary" disabled={busy} onClick={() => void aplicarPerfilGuardado(p.id)}>
+                    Aplicar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </>
       )}
       {msg && <div className="muted" style={{ marginTop: 10 }}>{msg}</div>}

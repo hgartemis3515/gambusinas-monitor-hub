@@ -29,7 +29,7 @@ export interface HubApi {
     opts?: { kiosk?: boolean },
   ) => Promise<{ applied: number; opened: number; errors: string[] }>;
   applyCocina: (
-    opts?: { kiosk?: boolean },
+    opts?: { kiosk?: boolean; monitorIndex?: number },
   ) => Promise<{ applied: number; opened: number; errors: string[] }>;
   deleteLayout: (id: string) => Promise<void>;
   importFromCocina: () => Promise<CocinaLayoutImport | null>;
