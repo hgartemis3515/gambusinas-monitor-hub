@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { app, dialog } from 'electron';
 import { join } from 'node:path';
-import type { CocinaLayoutImport, LayoutSlot } from '../shared/types.js';
+import type { CocinaLayoutImport, HubCocinero, LayoutSlot } from '../shared/types.js';
 import { logger } from '../shared/logger.js';
 import { notifyInboxUpdated } from './inboxEvents.js';
 
@@ -100,4 +100,62 @@ export function toPublicInbox(data: CocinaLayoutImport | null): CocinaLayoutImpo
       url: s.url ? s.url.replace(/#hubAuth=[^#]*/, '') : s.url,
     })),
   };
+}
+
+export function rewriteSlotUrl(url: string, monitorIndex: number, cocineroId: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set('monitor', String(monitorIndex));
+    u.searchParams.set('cocineroId', cocineroId);
+    return u.toString();
+  } catch {
+    const cid = encodeURIComponent(cocineroId);
+    let next = url.replace(/([?&])cocineroId=[^&#]*/i, `$1cocineroId=${cid}`);
+    if (!/[?&]cocineroId=/i.test(next)) {
+      next += (next.includes('?') ? '&' : '?') + `cocineroId=${cid}`;
+    }
+    next = next.replace(/([?&])monitor=\d+/i, `$1monitor=${monitorIndex}`);
+    return next;
+  }
+}
+
+export function tokenFromInbox(data: CocinaLayoutImport | null): string | null {
+  const raw = data?.authBundle;
+  if (!raw) return null;
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const token = (parsed as { token?: string })?.token;
+    return token || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setInboxCocinero(
+  monitorIndex: number,
+  cook: HubCocinero,
+): Promise<CocinaLayoutImport> {
+  const data = await readInbox();
+  if (!data?.slots?.length) {
+    throw new Error('No hay layout de Cocina. Envíalo desde App Cocina.');
+  }
+  const slots = [...data.slots];
+  const idx = slots.findIndex((s) => Number(s.monitorIndex) === Number(monitorIndex));
+  const template = (idx >= 0 ? slots[idx] : null) || slots.find((s) => s.url) || slots[0];
+  if (!template?.url) {
+    throw new Error('El layout no tiene URL de cocina para este monitor.');
+  }
+  const next: LayoutSlot = {
+    ...template,
+    monitorIndex: Number(monitorIndex),
+    url: rewriteSlotUrl(template.url, Number(monitorIndex), cook.id),
+    cocineroId: cook.id,
+    cocineroNombre: cook.nombre,
+    label: cook.nombre,
+  };
+  if (idx >= 0) slots[idx] = next;
+  else slots.push(next);
+  const updated: CocinaLayoutImport = { ...data, slots };
+  await writeInbox(updated);
+  return updated;
 }

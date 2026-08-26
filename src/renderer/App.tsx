@@ -1,6 +1,8 @@
 import React from 'react';
 import type {
   HubConfig,
+  HubCocinero,
+  LayoutSlot,
   MonitorInfo,
   MonitorPreview,
   WindowInfo,
@@ -37,6 +39,10 @@ export function App(): React.ReactElement {
   const [version, setVersion] = React.useState('');
   const [cfg, setCfg] = React.useState<HubConfig>(DEFAULT_CFG);
   const [inboxCount, setInboxCount] = React.useState(0);
+  const [slots, setSlots] = React.useState<LayoutSlot[]>([]);
+  const [cocineros, setCocineros] = React.useState<HubCocinero[]>([]);
+  const [identifyOn, setIdentifyOn] = React.useState(false);
+  const [changingMonitor, setChangingMonitor] = React.useState<number | null>(null);
   const [zooms, setZooms] = React.useState<Record<string, number>>({});
   const zoomTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
@@ -154,10 +160,19 @@ export function App(): React.ReactElement {
     void hub.getHubStatus().then(setStatus).catch(() => undefined);
     hub.onHubStatus(setStatus);
     void hub.getHubConfig().then(setCfg).catch(() => undefined);
-    void hub.importFromCocina().then((d) => setInboxCount(d?.slots?.length ?? 0)).catch(() => undefined);
+    void hub.importFromCocina().then((d) => {
+      setInboxCount(d?.slots?.length ?? 0);
+      setSlots(d?.slots ?? []);
+    }).catch(() => undefined);
+    void hub.listCocineros?.().then(setCocineros).catch(() => undefined);
+    void hub.identifyStatus?.().then(setIdentifyOn).catch(() => undefined);
     void hub.getChromeZooms?.().then(setZooms).catch(() => undefined);
     return hub.onInboxUpdated(() => {
-      void hub.importFromCocina().then((d) => setInboxCount(d?.slots?.length ?? 0)).catch(() => undefined);
+      void hub.importFromCocina().then((d) => {
+        setInboxCount(d?.slots?.length ?? 0);
+        setSlots(d?.slots ?? []);
+      }).catch(() => undefined);
+      void hub.listCocineros?.().then(setCocineros).catch(() => undefined);
     });
   }, []);
 
@@ -194,9 +209,33 @@ export function App(): React.ReactElement {
     const hub = getHub();
     if (!hub) return;
     try {
-      await hub.identifyMonitors();
+      const res = await hub.identifyMonitors();
+      setIdentifyOn(typeof res === 'object' && res ? !!res.active : !identifyOn);
     } catch (e) {
       setError('Identificar: ' + (e as Error).message);
+    }
+  }
+
+  async function handleChangeCocinero(monitorIndex: number, cook: HubCocinero): Promise<void> {
+    const hub = getHub();
+    if (!hub?.setSlotCocinero) return;
+    setChangingMonitor(monitorIndex);
+    setError(null);
+    try {
+      const res = await hub.setSlotCocinero(monitorIndex, cook, {
+        deploy: true,
+        kiosk: cfg.fullscreenOnDeploy !== false,
+      });
+      if (res.inbox?.slots) setSlots(res.inbox.slots);
+      setInboxCount(res.inbox?.slots?.length ?? 0);
+      if (res.deploy?.errors?.length) {
+        setError('Cocinero actualizado, pero al desplegar: ' + res.deploy.errors.join('; '));
+      }
+      await refresh();
+    } catch (e) {
+      setError('Cambiar cocinero: ' + (e as Error).message);
+    } finally {
+      setChangingMonitor(null);
     }
   }
 
@@ -215,6 +254,9 @@ export function App(): React.ReactElement {
   }
   const previewByMonitor = new Map<number, string | undefined>();
   for (const p of previews) previewByMonitor.set(p.monitorIndex, p.dataUrl);
+
+  const slotByMonitor = new Map<number, LayoutSlot>();
+  for (const s of slots) slotByMonitor.set(Number(s.monitorIndex), s);
 
   const scaleClass =
     cfg.previewScale === 2 ? 'scale-2' : cfg.previewScale === 1 ? 'scale-1' : 'scale-15';
@@ -242,7 +284,13 @@ export function App(): React.ReactElement {
             <div className="topbar">
               <span className="title">Monitores</span>
               <span className="spacer" />
-              <button onClick={handleIdentify}>Identificar monitores</button>
+              <button
+                className={identifyOn ? 'toggle-on' : ''}
+                onClick={() => void handleIdentify()}
+                title={identifyOn ? 'Ocultar el número en cada monitor' : 'Mostrar el número en cada monitor'}
+              >
+                {identifyOn ? 'Enumerado ON' : 'Identificar monitores'}
+              </button>
               <button onClick={() => void refresh()}>Actualizar</button>
             </div>
             {loading && monitors.length === 0 ? (
@@ -256,10 +304,17 @@ export function App(): React.ReactElement {
                     windowOnMonitor={windowByMonitor.get(m.index)}
                     preview={previewByMonitor.get(m.index)}
                     previewScale={cfg.previewScale}
-                    onIdentify={handleIdentify}
+                    cocineroId={slotByMonitor.get(m.index)?.cocineroId}
+                    cocineroNombre={
+                      slotByMonitor.get(m.index)?.cocineroNombre
+                      || slotByMonitor.get(m.index)?.label
+                    }
+                    cocineros={cocineros}
+                    changingCocinero={changingMonitor === m.index}
                     onSetMode={handleSetMode}
                     chromeZoom={zooms[String(m.index)] ?? 100}
                     onChromeZoom={(z) => handleChromeZoom(m.index, z)}
+                    onChangeCocinero={(cook) => void handleChangeCocinero(m.index, cook)}
                   />
                 ))}
               </div>

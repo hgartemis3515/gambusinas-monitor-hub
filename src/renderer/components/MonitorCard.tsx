@@ -1,6 +1,7 @@
 import React from 'react';
-import type { MonitorInfo, PreviewScale, WindowInfo, WindowMode } from '@shared/types';
+import type { HubCocinero, MonitorInfo, PreviewScale, WindowInfo, WindowMode } from '@shared/types';
 import { ChromeZoomSlider } from './ChromeZoomSlider';
+import { CocineroSelect } from './CocineroSelect';
 
 interface Props {
   monitor: MonitorInfo;
@@ -8,9 +9,13 @@ interface Props {
   preview?: string;
   previewScale: PreviewScale;
   chromeZoom: number;
-  onIdentify: () => void;
+  cocineroId?: string;
+  cocineroNombre?: string;
+  cocineros: HubCocinero[];
+  changingCocinero?: boolean;
   onSetMode: (hwnd: number, mode: WindowMode) => void;
   onChromeZoom: (zoom: number) => void;
+  onChangeCocinero: (cook: HubCocinero) => void;
 }
 
 export function MonitorCard({
@@ -19,12 +24,17 @@ export function MonitorCard({
   preview,
   previewScale,
   chromeZoom,
-  onIdentify,
+  cocineroId,
+  cocineroNombre,
+  cocineros,
+  changingCocinero,
   onSetMode,
   onChromeZoom,
+  onChangeCocinero,
 }: Props): React.ReactElement {
   const transmitting = Boolean(windowOnMonitor);
   const src = preview || windowOnMonitor?.thumbnail;
+  const cookLabel = cocineroNombre || (cocineroId ? 'Cocinero' : 'Sin cocinero');
   return (
     <div
       className={`monitor-card${monitor.isPrimary ? ' primary' : ''}${transmitting ? ' tx-glow' : ''}`}
@@ -35,6 +45,9 @@ export function MonitorCard({
         <span className={`badge ${transmitting ? 'tx' : 'free'}`}>
           {transmitting ? 'Transmitiendo' : 'Libre'}
         </span>
+      </div>
+      <div className="cocinero-line" title={cookLabel}>
+        {changingCocinero ? 'Cambiando cocinero…' : cookLabel}
       </div>
       <div className="meta">
         {monitor.bounds.width}×{monitor.bounds.height} @ ({monitor.bounds.x},{monitor.bounds.y})
@@ -72,8 +85,14 @@ export function MonitorCard({
         </div>
       </div>
       <ChromeZoomSlider value={chromeZoom} onChange={onChromeZoom} />
-      <div className="row">
-        <button onClick={onIdentify}>Identificar</button>
+      <div className="row" style={{ marginTop: 8 }}>
+        <CocineroSelect
+          valueId={cocineroId}
+          valueNombre={cocineroNombre}
+          cocineros={cocineros}
+          disabled={changingCocinero}
+          onChange={onChangeCocinero}
+        />
       </div>
     </div>
   );

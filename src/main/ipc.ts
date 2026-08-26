@@ -1,6 +1,7 @@
-import { ipcMain, BrowserWindow, desktopCapturer } from 'electron';
+import { ipcMain, desktopCapturer } from 'electron';
 import { IpcChannel } from '../shared/ipc-channels.js';
 import type {
+  HubCocinero,
   LayoutSlot,
   WindowMode,
   WindowProcessFilter,
@@ -9,12 +10,22 @@ import { listMonitors } from './monitors.js';
 import { listWindows } from './windows.js';
 import { moveWindowToMonitor, setWindowMode } from './windowManager.js';
 import { listLayouts, saveLayout, deleteLayout } from './layoutStore.js';
-import { readInbox, importFromFile, toPublicInbox } from './cocinaBridge.js';
+import {
+  readInbox,
+  importFromFile,
+  toPublicInbox,
+  tokenFromInbox,
+  setInboxCocinero,
+} from './cocinaBridge.js';
 import { applyLayout, applyCocinaInbox } from './layoutApply.js';
 import { getCachedPreviews, setPreviewOptions, setPreviewsLive } from './screenCapture.js';
 import { readConfig } from './hubSocket.js';
 import { logger } from '../shared/logger.js';
 import { readChromeZooms, setAndApplyChromeZoom } from './chromeZoom.js';
+import {
+  toggleIdentifyOverlays,
+  identifyOverlaysActive,
+} from './identifyOverlays.js';
 
 export function registerIpc(): void {
   ipcMain.handle(IpcChannel.MONITORS_LIST, () => listMonitors());
@@ -75,9 +86,33 @@ export function registerIpc(): void {
   });
 
   ipcMain.handle(IpcChannel.MONITORS_IDENTIFY, () => {
-    identifyMonitors();
-    return true;
+    const active = toggleIdentifyOverlays();
+    return { active };
   });
+
+  ipcMain.handle(IpcChannel.MONITORS_IDENTIFY_STATUS, () => identifyOverlaysActive());
+
+  ipcMain.handle(IpcChannel.COCINA_COCINEROS, () => listCocinerosHub());
+
+  ipcMain.handle(
+    IpcChannel.COCINA_SET_COCINERO,
+    async (
+      _e,
+      monitorIndex: number,
+      cook: HubCocinero,
+      opts?: { deploy?: boolean; kiosk?: boolean },
+    ) => {
+      const data = await setInboxCocinero(monitorIndex, cook);
+      let deploy = { applied: 0, opened: 0, errors: [] as string[] };
+      if (opts?.deploy !== false) {
+        deploy = await applyCocinaInbox({
+          kiosk: opts?.kiosk !== false,
+          monitorIndex: Number(monitorIndex),
+        });
+      }
+      return { inbox: toPublicInbox(data), deploy };
+    },
+  );
 
   ipcMain.handle(IpcChannel.LAYOUTS_LIST, () => listLayouts());
 
@@ -116,31 +151,38 @@ export function registerIpc(): void {
   });
 }
 
-function identifyMonitors(): void {
-  const monitors = listMonitors();
-  for (const m of monitors) {
-    const win = new BrowserWindow({
-      x: m.bounds.x + 40,
-      y: m.bounds.y + 40,
-      width: 320,
-      height: 240,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      focusable: false,
-      show: false,
-    });
-    win.loadURL(
-      'data:text/html;charset=utf-8,' +
-        encodeURIComponent(
-          `<div style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);color:#fff;font-family:Arial;font-size:160px;font-weight:bold">${m.index}</div>`,
-        ),
-    );
-    win.once('ready-to-show', () => {
-      win.show();
-      setTimeout(() => win.close(), 2000);
+async function listCocinerosHub(): Promise<HubCocinero[]> {
+  const inbox = await readInbox();
+  const byId = new Map<string, HubCocinero>();
+  for (const s of inbox?.slots || []) {
+    const id = String(s.cocineroId || '').trim();
+    if (!id) continue;
+    byId.set(id, {
+      id,
+      nombre: String(s.cocineroNombre || s.label || id).trim() || id,
     });
   }
+  const token = tokenFromInbox(inbox);
+  try {
+    const cfg = await readConfig();
+    const base = (cfg.backendUrl || '').replace(/\/$/, '');
+    if (base && token) {
+      const res = await fetch(`${base}/api/cocina/cocineros`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = (await res.json()) as {
+          data?: Array<{ _id?: string; name?: string; alias?: string }>;
+        };
+        for (const c of Array.isArray(json.data) ? json.data : []) {
+          const id = String(c._id || '').trim();
+          if (!id) continue;
+          byId.set(id, { id, nombre: String(c.alias || c.name || id).trim() || id });
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn('listCocinerosHub: API no disponible', { error: (e as Error).message });
+  }
+  return [...byId.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }

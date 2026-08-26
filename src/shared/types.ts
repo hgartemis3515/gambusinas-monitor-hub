@@ -69,6 +69,11 @@ export interface MonitorPreview {
   dataUrl?: string;
 }
 
+export interface HubCocinero {
+  id: string;
+  nombre: string;
+}
+
 export interface LayoutSlot {
   monitorIndex: number;
   match?: { process?: string; titleContains?: string };

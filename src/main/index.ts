@@ -9,6 +9,7 @@ import { IpcChannel } from '../shared/ipc-channels.js';
 import type { HubConfig } from '../shared/types.js';
 import { ipcMain } from 'electron';
 import { checkForHubUpdates, getUpdateStatus, setupAutoUpdater } from './autoUpdate.js';
+import { closeIdentifyOverlays } from './identifyOverlays.js';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -140,5 +141,6 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  closeIdentifyOverlays();
   if (process.platform !== 'darwin') app.quit();
 });

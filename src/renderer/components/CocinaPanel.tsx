@@ -1,7 +1,8 @@
 import React from 'react';
-import type { CocinaLayoutImport, LayoutProfile, LayoutSlot } from '@shared/types';
+import type { CocinaLayoutImport, HubCocinero, LayoutProfile, LayoutSlot } from '@shared/types';
 import type { HubApi } from '../../preload/index';
 import { ChromeZoomSlider } from './ChromeZoomSlider';
+import { CocineroSelect } from './CocineroSelect';
 
 interface Props {
   onRefresh: () => void;
@@ -25,6 +26,8 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
   const [profileName, setProfileName] = React.useState('');
   const [profiles, setProfiles] = React.useState<LayoutProfile[]>([]);
   const [despegando, setDespegando] = React.useState<number | null>(null);
+  const [cocineros, setCocineros] = React.useState<HubCocinero[]>([]);
+  const [cambiando, setCambiando] = React.useState<number | null>(null);
 
   function getHub(): HubApi | null {
     return (window as unknown as { hub?: HubApi }).hub ?? null;
@@ -41,6 +44,7 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
       const z = await hub.getChromeZooms();
       setZooms(z);
       setProfiles(await hub.listLayouts());
+      if (hub.listCocineros) setCocineros(await hub.listCocineros());
     } catch (e) {
       onError('Inbox: ' + (e as Error).message);
     }
@@ -94,6 +98,28 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
     } finally {
       setBusy(false);
       setDespegando(null);
+    }
+  }
+
+  async function cambiarCocinero(monitorIndex: number, cook: HubCocinero): Promise<void> {
+    const hub = getHub();
+    if (!hub?.setSlotCocinero) return;
+    setCambiando(monitorIndex);
+    onError(null);
+    setMsg(null);
+    try {
+      const res = await hub.setSlotCocinero(monitorIndex, cook, {
+        deploy: true,
+        kiosk: fullscreen,
+      });
+      if (res.inbox) setInbox(res.inbox);
+      const extra = res.deploy.errors.length ? ' · ' + res.deploy.errors.join('; ') : '';
+      setMsg(`M${monitorIndex} → ${cook.nombre}${extra}`);
+      onRefresh();
+    } catch (e) {
+      onError('Cambiar cocinero: ' + (e as Error).message);
+    } finally {
+      setCambiando(null);
     }
   }
 
@@ -167,6 +193,14 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
         <>
           <div className="muted" style={{ marginBottom: 10 }}>
             {inbox?.profileName || 'Layout de Cocina'} · {slots.length} monitores listos
+            {slots.some((s) => s.cocineroNombre || s.label) ? (
+              <span>
+                {' '}· En pantalla:{' '}
+                {slots
+                  .map((s) => `M${s.monitorIndex} ${s.cocineroNombre || s.label || '—'}`)
+                  .join(' · ')}
+              </span>
+            ) : null}
           </div>
           <table className="slots-table">
             <thead>
@@ -183,7 +217,15 @@ export function CocinaPanel({ onRefresh, onError }: Props): React.ReactElement {
               {slots.map((s, i) => (
                 <tr key={`${s.monitorIndex}-${s.cocineroId || i}`}>
                   <td>M{s.monitorIndex}</td>
-                  <td>{s.cocineroNombre || s.label || s.cocineroId || '—'}</td>
+                  <td>
+                    <CocineroSelect
+                      valueId={s.cocineroId}
+                      valueNombre={s.cocineroNombre || s.label}
+                      cocineros={cocineros}
+                      disabled={busy || cambiando === s.monitorIndex}
+                      onChange={(cook) => void cambiarCocinero(s.monitorIndex, cook)}
+                    />
+                  </td>
                   <td>{perfilLabel(s)}</td>
                   <td>{s.listaGuarniciones ? 'Sí' : '—'}</td>
                   <td>

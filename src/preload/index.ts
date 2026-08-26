@@ -10,6 +10,7 @@ import type {
   WindowProcessFilter,
   CocinaLayoutImport,
   HubConfig,
+  HubCocinero,
   HubUpdateStatus,
 } from '../shared/types.js';
 
@@ -17,7 +18,17 @@ export interface HubApi {
   listMonitors: () => Promise<MonitorInfo[]>;
   listMonitorPreviews: () => Promise<MonitorPreview[]>;
   setPreviewsLive: (on: boolean) => Promise<boolean>;
-  identifyMonitors: () => Promise<boolean>;
+  identifyMonitors: () => Promise<{ active: boolean }>;
+  identifyStatus: () => Promise<boolean>;
+  listCocineros: () => Promise<HubCocinero[]>;
+  setSlotCocinero: (
+    monitorIndex: number,
+    cook: HubCocinero,
+    opts?: { deploy?: boolean; kiosk?: boolean },
+  ) => Promise<{
+    inbox: CocinaLayoutImport | null;
+    deploy: { applied: number; opened: number; errors: string[] };
+  }>;
   listWindows: (filter?: WindowProcessFilter) => Promise<WindowInfo[]>;
   listThumbnails: () => Promise<WindowInfo[]>;
   moveWindow: (hwnd: number, monitorIndex: number, mode?: WindowMode) => Promise<boolean>;
@@ -53,6 +64,10 @@ try {
     listMonitorPreviews: () => ipcRenderer.invoke(IpcChannel.MONITORS_PREVIEWS),
     setPreviewsLive: (on: boolean) => ipcRenderer.invoke(IpcChannel.MONITORS_PREVIEWS_LIVE, on),
     identifyMonitors: () => ipcRenderer.invoke(IpcChannel.MONITORS_IDENTIFY),
+    identifyStatus: () => ipcRenderer.invoke(IpcChannel.MONITORS_IDENTIFY_STATUS),
+    listCocineros: () => ipcRenderer.invoke(IpcChannel.COCINA_COCINEROS),
+    setSlotCocinero: (monitorIndex, cook, opts) =>
+      ipcRenderer.invoke(IpcChannel.COCINA_SET_COCINERO, monitorIndex, cook, opts),
     listWindows: (filter: WindowProcessFilter = 'all') =>
       ipcRenderer.invoke(IpcChannel.WINDOWS_LIST, filter),
     listThumbnails: () => ipcRenderer.invoke(IpcChannel.WINDOWS_THUMBNAILS),

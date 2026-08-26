@@ -11,6 +11,13 @@ button {
 button:hover { background: #334155; }
 button.primary { background: #2563eb; border-color: #3b82f6; }
 button.primary:hover { background: #3b82f6; }
+button.toggle-on { background: #d4af37; color: #0f172a; border-color: #d4af37; font-weight: 700; }
+button.toggle-on:hover { background: #e4c04a; }
+select.cocinero-select { width: 100%; min-width: 140px; }
+.cocinero-line {
+  margin-top: 6px; font-size: 13px; font-weight: 700; color: #fbbf24;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 button.danger { background: #b91c1c; border-color: #dc2626; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 select, input {
