@@ -9,7 +9,7 @@ interface Props {
 export function ChromeZoomSlider({ value, disabled, onChange }: Props): React.ReactElement {
   return (
     <div className="zoom-row">
-      <label>Zoom Chrome</label>
+      <label>Zoom (como Chrome)</label>
       <input
         type="range"
         min={50}
