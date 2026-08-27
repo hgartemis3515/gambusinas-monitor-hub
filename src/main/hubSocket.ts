@@ -6,6 +6,7 @@ import type { CocinaLayoutImport, HubConfig } from '../shared/types.js';
 import { writeInbox } from './cocinaBridge.js';
 import { applyCocinaInbox } from './layoutApply.js';
 import { logger } from '../shared/logger.js';
+import { applyOpenAtLogin, isOpenAtLogin } from './loginItem.js';
 
 const CONFIG_FILE = 'hub-config.json';
 const DEFAULT_BACKEND = 'http://localhost:3000';
@@ -16,6 +17,8 @@ export const DEFAULT_HUB_CONFIG: HubConfig = {
   previewIntervalMs: 1500,
   fullscreenOnDeploy: true,
   autoDeployOnReceive: false,
+  openAtLogin: false,
+  autoDeployOnStartup: false,
 };
 
 let _socket: Socket | null = null;
@@ -49,6 +52,8 @@ function mergeConfig(partial: Partial<HubConfig> | null | undefined): HubConfig 
         : DEFAULT_HUB_CONFIG.previewIntervalMs,
     fullscreenOnDeploy: partial?.fullscreenOnDeploy ?? DEFAULT_HUB_CONFIG.fullscreenOnDeploy,
     autoDeployOnReceive: partial?.autoDeployOnReceive ?? DEFAULT_HUB_CONFIG.autoDeployOnReceive,
+    openAtLogin: partial?.openAtLogin ?? DEFAULT_HUB_CONFIG.openAtLogin,
+    autoDeployOnStartup: partial?.autoDeployOnStartup ?? DEFAULT_HUB_CONFIG.autoDeployOnStartup,
   };
 }
 
@@ -56,9 +61,10 @@ export async function readConfig(): Promise<HubConfig> {
   try {
     const file = join(app.getPath('userData'), CONFIG_FILE);
     const raw = await fs.readFile(file, 'utf8');
-    return mergeConfig(JSON.parse(raw) as Partial<HubConfig>);
+    const merged = mergeConfig(JSON.parse(raw) as Partial<HubConfig>);
+    return { ...merged, openAtLogin: isOpenAtLogin() || merged.openAtLogin };
   } catch {
-    return { ...DEFAULT_HUB_CONFIG };
+    return { ...DEFAULT_HUB_CONFIG, openAtLogin: isOpenAtLogin() };
   }
 }
 
@@ -67,6 +73,9 @@ export async function saveConfig(partial: Partial<HubConfig>): Promise<void> {
   const next = mergeConfig({ ...current, ...partial });
   const file = join(app.getPath('userData'), CONFIG_FILE);
   await fs.writeFile(file, JSON.stringify(next, null, 2), 'utf8');
+  if (partial.openAtLogin !== undefined) {
+    applyOpenAtLogin(next.openAtLogin);
+  }
   if (next.backendUrl !== current.backendUrl) {
     void startHubSocket();
   }

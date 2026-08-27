@@ -23,6 +23,8 @@ const DEFAULT_CFG: HubConfig = {
   previewIntervalMs: 1500,
   fullscreenOnDeploy: true,
   autoDeployOnReceive: false,
+  openAtLogin: false,
+  autoDeployOnStartup: false,
 };
 
 export function App(): React.ReactElement {

@@ -109,6 +109,26 @@ export function SettingsPanel({ onConfigChange }: Props): React.ReactElement {
         />
         Desplegar automáticamente al recibir de App Cocina
       </label>
+      <label className="kiosk-label" style={{ marginTop: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!cfg.openAtLogin}
+          disabled={saving}
+          onChange={(e) => void patch({ openAtLogin: e.target.checked })}
+        />
+        Iniciar al prender la PC
+      </label>
+      <p className="muted">Registra el Hub en el inicio de Windows. Requiere la app instalada (no el modo desarrollo).</p>
+      <label className="kiosk-label" style={{ marginTop: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!cfg.autoDeployOnStartup}
+          disabled={saving}
+          onChange={(e) => void patch({ autoDeployOnStartup: e.target.checked })}
+        />
+        Al iniciar, despegar ventanas de Cocina
+      </label>
+      <p className="muted">Si hay backend guardado y un layout de Cocina (como se dejó), al arrancar abre las ventanas igual que «Desplegar ventanas».</p>
       {msg && <div className="muted" style={{ marginTop: 10 }}>{msg}</div>}
 
       <h2 style={{ marginTop: 22 }}>Actualizaciones</h2>

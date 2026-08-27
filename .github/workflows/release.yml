@@ -54,7 +54,7 @@ jobs:
           tag_name: v${{ steps.ver.outputs.version }}
           name: v${{ steps.ver.outputs.version }}
           body: |
-            Zoom Chrome desde el Hub (en vivo) y auto-update sin reinstalar el Setup.
+            Inicio automático al prender la PC y despegar ventanas de Cocina al arrancar (si hay backend y layout guardados).
           files: |
             release/GambusinasMonitorHub-Setup-*.exe
             release/GambusinasMonitorHub-Setup-*.exe.blockmap

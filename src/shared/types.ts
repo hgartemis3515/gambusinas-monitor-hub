@@ -51,6 +51,8 @@ export interface HubConfig {
   previewIntervalMs: number;
   fullscreenOnDeploy: boolean;
   autoDeployOnReceive: boolean;
+  openAtLogin: boolean;
+  autoDeployOnStartup: boolean;
 }
 
 export type HubUpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error' | 'dev';

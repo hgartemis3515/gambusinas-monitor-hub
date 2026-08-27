@@ -10,6 +10,9 @@ import type { HubConfig } from '../shared/types.js';
 import { ipcMain } from 'electron';
 import { checkForHubUpdates, getUpdateStatus, setupAutoUpdater } from './autoUpdate.js';
 import { closeIdentifyOverlays } from './identifyOverlays.js';
+import { applyOpenAtLogin } from './loginItem.js';
+import { readInbox } from './cocinaBridge.js';
+import { applyCocinaInbox } from './layoutApply.js';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -122,6 +125,28 @@ function registerHubIpc(): void {
   });
 }
 
+async function maybeAutoDespegarOnStartup(): Promise<void> {
+  const cfg = await readConfig();
+  applyOpenAtLogin(!!cfg.openAtLogin);
+  if (!cfg.autoDeployOnStartup) return;
+  const backendOk = typeof cfg.backendUrl === 'string' && cfg.backendUrl.trim().length > 0;
+  if (!backendOk) {
+    logger.info('autoDeployOnStartup: sin backendUrl, skip');
+    return;
+  }
+  try {
+    const inbox = await readInbox();
+    if (!inbox?.slots?.length) {
+      logger.info('autoDeployOnStartup: sin layout de Cocina, skip');
+      return;
+    }
+    const res = await applyCocinaInbox({ kiosk: cfg.fullscreenOnDeploy !== false });
+    logger.info('autoDeployOnStartup: ventanas despegadas', res);
+  } catch (e) {
+    logger.error('autoDeployOnStartup failed', { message: (e as Error).message });
+  }
+}
+
 app.whenReady().then(() => {
   if (!checkPlatform()) {
     app.quit();
@@ -134,6 +159,9 @@ app.whenReady().then(() => {
   void startHubSocket();
   setupAutoUpdater();
   createWindow();
+  setTimeout(() => {
+    void maybeAutoDespegarOnStartup();
+  }, 2500);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
